@@ -1,6 +1,7 @@
 #include <mod/amlmod.h>
 #include <mod/logger.h>
 #include "audiosystem.h"
+#include "camera.h"
 
 #include "icleo.h"
 ICLEO* cleo = nullptr;
@@ -11,15 +12,16 @@ IBASS* BASS = nullptr;
 static CSoundSystem soundsysLocal;
 CSoundSystem* soundsys = &soundsysLocal;
 
-CPlaceable *camera;
+CCamera *camera;
 bool* userPaused;
 bool* codePaused;
 
 CPlaceable* (*GetObjectFromRef)(int) = nullptr;
 CPlaceable* (*GetPedFromRef)(int) = nullptr;
 CPlaceable* (*GetVehicleFromRef)(int) = nullptr;
+CPlaceable* (*FindPlayerPed)(int) = nullptr;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0.1, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.1)
     ADD_DEPENDENCY(net.rusjj.basslib)
@@ -195,13 +197,14 @@ extern "C" void OnModLoad()
 
     __print_to_log("Starting AudioStreams...");
     HOOK(UpdateGameLogic, cleo->GetMainLibrarySymbol("_ZN5CGame7ProcessEv"));
-    camera = *(CPlaceable**)cleo->GetMainLibrarySymbol("TheCamera");
+    camera = *(CCamera**)cleo->GetMainLibrarySymbol("TheCamera");
     userPaused = (bool*)cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE");
     codePaused = (bool*)cleo->GetMainLibrarySymbol("_ZN6CTimer11m_CodePauseE");
 
     GetObjectFromRef = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi");
     GetPedFromRef = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi");
     GetVehicleFromRef = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi");
+    FindPlayerPed = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_Z13FindPlayerPedi");
 
     __reg_op_func(LOAD_AUDIO_STREAM, LOAD_AUDIO_STREAM);
     __reg_op_func(SET_AUDIO_STREAM_STATE, SET_AUDIO_STREAM_STATE);

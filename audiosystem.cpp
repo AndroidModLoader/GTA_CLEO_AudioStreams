@@ -3,13 +3,15 @@
 
 #include "ibass.h"
 #include "audiosystem.h"
+#include "camera.h"
 #include "mod/logger.h"
 
 BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0, 0), top(0, 0, 1.0);
 BASS_3DVECTOR bass_tmp(0.0f, 0.0f, 0.0f), bass_tmp2(0.0f, 0.0f, 0.0f), bass_tmp3(0.0f, 0.0f, 0.0f);
-extern CPlaceable *camera;
+extern CCamera *camera;
 extern bool* userPaused;
 extern bool* codePaused;
+extern CPlaceable* (*FindPlayerPed)(int);
 
 bool CSoundSystem::Init()
 {
@@ -34,7 +36,7 @@ bool CSoundSystem::Init()
         BASS->Apply3D();
         return true;
     }
-    logger->Error("Could not initialize BASS sound system");
+    logger->Error("Could not initialize SoundSys");
     return false;
 }
 
@@ -55,7 +57,7 @@ void CSoundSystem::UnloadStream(CAudioStream *stream)
     if (streams.erase(stream))
         delete stream;
     else
-        logger->Error("Unloading of stream that is not in list of loaded streams");
+        logger->Error("Unloading of stream that is not in a list of loaded streams");
 }
 
 void CSoundSystem::UnloadAllStreams()
@@ -96,26 +98,24 @@ void CSoundSystem::Update()
         // not in menu
         // process camera movements
 
-        CMatrixLink * pMatrix = nullptr;
-        CVector * pVec = nullptr;
-        if (camera->m_matrix)
+        // TODO: Get it to work with CAMERA
+        CMatrix* pMatrix = nullptr; //(CMatrix*)((int)camera + 2300);
+        CVector& pVec = FindPlayerPed(-1)->GetPosition(); //pMatrix->pos;
+
+        bass_tmp.x = pVec.y;
+        bass_tmp.y = pVec.z;
+        bass_tmp.z = pVec.x;
+
+        if(pMatrix)
         {
-            pMatrix = camera->m_matrix;
-            pVec = &pMatrix->pos;
+            bass_tmp2.x = pMatrix->at.y;
+            bass_tmp2.y = pMatrix->at.z;
+            bass_tmp2.z = pMatrix->at.x;
+
+            bass_tmp3.x = pMatrix->up.y;
+            bass_tmp3.y = pMatrix->up.z;
+            bass_tmp3.z = pMatrix->up.x;
         }
-        else pVec = &camera->m_placement.m_vPosn;
-
-        bass_tmp.x = pVec->y;
-        bass_tmp.y = pVec->z;
-        bass_tmp.z = pVec->x;
-
-        bass_tmp2.x = pMatrix->at.y;
-        bass_tmp2.y = pMatrix->at.z;
-        bass_tmp2.z = pMatrix->at.x;
-
-        bass_tmp3.x = pMatrix->up.y;
-        bass_tmp3.y = pMatrix->up.z;
-        bass_tmp3.z = pMatrix->up.x;
 
         BASS->Set3DPosition(
             &bass_tmp,
@@ -123,6 +123,10 @@ void CSoundSystem::Update()
             pMatrix ? &bass_tmp2 : nullptr,
             pMatrix ? &bass_tmp3 : nullptr
         );
+
+        //logger->Info("BASS Camera Pos: %f %f %f", pVec.x, pVec.y, pVec.z);
+        //logger->Info("BASS Camera At: %f %f %f", bass_tmp2.z, bass_tmp2.x, bass_tmp2.y);
+        //logger->Info("BASS Camera Up: %f %f %f", bass_tmp3.z, bass_tmp3.x, bass_tmp3.y);
 
         // process all streams
         std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) {
@@ -157,29 +161,6 @@ CAudioStream::~CAudioStream()
     if (streamInternal) BASS->StreamFree(streamInternal);
 }
 
-C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(nullptr)
-{
-    unsigned flags = BASS_SAMPLE_3D | BASS_SAMPLE_MONO | BASS_SAMPLE_SOFTWARE;
-    if (soundsys->bUseFPAudio)
-        flags |= BASS_SAMPLE_FLOAT;
-    std::string sabc1 = "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/"; sabc1 += src; // Yeah, completely hardcoded. For yet.
-    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, nullptr)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
-        !(streamInternal = BASS->StreamCreateFile(false, sabc1.c_str(), 0, 0, flags)))
-    {
-        logger->Error("Loading 3D audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
-    }
-    else
-    {
-        BASS->ChannelSet3DAttributes(streamInternal, 0, -1.0, -1.0, -1, -1, -1.0);
-        OK = true;
-    }
-}
-
-C3DAudioStream::~C3DAudioStream()
-{
-    if (streamInternal) BASS->StreamFree(streamInternal);
-}
-
 void CAudioStream::Play()
 {
     BASS->ChannelPlay(streamInternal, true);
@@ -207,13 +188,12 @@ void CAudioStream::Resume()
 
 uint64_t CAudioStream::GetLength()
 {
-    return (unsigned)BASS->ChannelBytes2Seconds(streamInternal,
-        BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE));
+    return (uint64_t)BASS->ChannelBytes2Seconds(streamInternal, BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE));
 }
 
 int CAudioStream::GetState()
 {
-    if (state == stopped) return -1;		// dont do this in case we changed state by pausing
+    if (state == stopped) return -1;
     switch (BASS->ChannelIsActive(streamInternal))
     {
     case BASS_ACTIVE_STOPPED:
@@ -230,8 +210,7 @@ int CAudioStream::GetState()
 float CAudioStream::GetVolume()
 {
     float result;
-    if (!BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_VOL, &result))
-        return -1.0f;
+    if (!BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_VOL, &result)) return -1.0f;
     return result;
 }
 
@@ -244,12 +223,10 @@ void CAudioStream::Loop(bool enable)
 {
     BASS->ChannelFlags(streamInternal, enable ? BASS_SAMPLE_LOOP : 0, BASS_SAMPLE_LOOP);
 }
-uint64_t CAudioStream::GetInternal(){ return streamInternal; }
+uint64_t CAudioStream::GetInternal() { return streamInternal; }
 
 void CAudioStream::Process()
 {
-    // no actions required			// liez!
-
     switch (BASS->ChannelIsActive(streamInternal))
     {
     case BASS_ACTIVE_PAUSED:
@@ -265,19 +242,44 @@ void CAudioStream::Process()
     }
 }
 
-void CAudioStream::Set3dPosition(const CVector& pos)
+void CAudioStream::Set3dPosition(const CVector&)
 {
-    logger->Error("Unimplemented CAudioStream::Set3dPosition()");
+    logger->Error("Unimplemented CAudioStream::Set3dPosition(const CVector&)");
 }
 
-void CAudioStream::Set3dPosition(float x, float y, float z)
+void CAudioStream::Set3dPosition(float, float, float)
 {
-    logger->Error("Unimplemented CAudioStream::Set3dPosition()");
+    logger->Error("Unimplemented CAudioStream::Set3dPosition(float,float,float)");
 }
 
-void CAudioStream::Link(CPlaceable *placable)
+void CAudioStream::Link(CPlaceable*)
 {
-    logger->Error("Unimplemented CAudioStream::Link()");
+    logger->Error("Unimplemented CAudioStream::Link(CPlaceable*)");
+}
+
+////////////////// 3D Audiostream //////////////////
+
+C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(nullptr)
+{
+    unsigned flags = BASS_SAMPLE_3D | BASS_SAMPLE_MONO | BASS_SAMPLE_SOFTWARE;
+    if (soundsys->bUseFPAudio)
+        flags |= BASS_SAMPLE_FLOAT;
+    std::string sabc1 = "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/"; sabc1 += src; // Yeah, completely hardcoded. For yet.
+    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, nullptr)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
+        !(streamInternal = BASS->StreamCreateFile(false, sabc1.c_str(), 0, 0, flags)))
+    {
+        logger->Error("Loading 3D audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
+    }
+    else
+    {
+        BASS->ChannelSet3DAttributes(streamInternal, 0, -1.0, -1.0, -1, -1, -1.0);
+        OK = true;
+    }
+}
+
+C3DAudioStream::~C3DAudioStream()
+{
+    if (streamInternal) BASS->StreamFree(streamInternal);
 }
 
 void C3DAudioStream::Set3dPosition(const CVector& pos)
@@ -298,10 +300,9 @@ void C3DAudioStream::Set3dPosition(float x, float y, float z)
     BASS->ChannelSet3DPosition(streamInternal, &position, nullptr, nullptr);
 }
 
-void C3DAudioStream::Link(CPlaceable *placable)
+void C3DAudioStream::Link(CPlaceable *placeable)
 {
-    link = placable;
-    //Set3dPosition(placable->GetPos());
+    link = placeable;
 }
 
 void C3DAudioStream::Process()
@@ -324,12 +325,6 @@ void C3DAudioStream::Process()
     {
         if (link)
         {
-            // CPlaceable::m_matrix = this+20
-            //CVector * pVec = link->m_matrix ? &link->m_matrix->pos : &link->m_placement.m_vPosn;
-
-            //CMatrix* mtrx = *(CMatrix**)((uintptr_t)link+20);
-            //CVector* pVec = mtrx ? &mtrx->pos : &link->m_placement.m_vPosn;
-
             CVector* pVec = &link->GetPosition();
 
             bass_tmp.x = pVec->y;
@@ -343,7 +338,6 @@ void C3DAudioStream::Process()
             bass_tmp.y = position.z;
             bass_tmp.z = position.x;
             BASS->ChannelSet3DPosition(streamInternal, &bass_tmp, nullptr, nullptr);
-            //BASS->ChannelGet3DPosition(streamInternal, &position, nullptr, nullptr);
         }
     }
 }

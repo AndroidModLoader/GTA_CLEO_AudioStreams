@@ -6,6 +6,7 @@
 class CPlaceable
 {
 public:
+    char pad1[4];
     CSimpleTransform m_placement;
     CMatrixLink* m_matrix;
     inline CVector& GetPosition()
