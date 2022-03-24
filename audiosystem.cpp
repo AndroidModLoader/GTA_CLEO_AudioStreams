@@ -3,7 +3,7 @@
 
 #include "ibass.h"
 #include "audiosystem.h"
-#include "camera.h"
+#include "GTASA_STRUCTS.h"
 #include "mod/logger.h"
 
 BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0, 0), top(0, 0, 1.0);
@@ -11,7 +11,9 @@ BASS_3DVECTOR bass_tmp(0.0f, 0.0f, 0.0f), bass_tmp2(0.0f, 0.0f, 0.0f), bass_tmp3
 extern CCamera *camera;
 extern bool* userPaused;
 extern bool* codePaused;
-extern CPlaceable* (*FindPlayerPed)(int);
+extern CPlayerPed* (*FindPlayerPed)(int);
+
+std::string sGameRoot = "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/";
 
 bool CSoundSystem::Init()
 {
@@ -49,7 +51,7 @@ CAudioStream *CSoundSystem::LoadStream(const char *filename, bool in3d)
         return result;
     }
     delete result;
-    return nullptr;
+    return NULL;
 }
 
 void CSoundSystem::UnloadStream(CAudioStream *stream)
@@ -95,16 +97,13 @@ void CSoundSystem::Update()
     {
         if (paused) ResumeStreams();
 
-        // not in menu
-        // process camera movements
+        // TODO: Get it to work with CAMERA (Camera shows me it`s position as 15.9 XYZ...)
+        CMatrix* pMatrix = NULL;
+        CVector* pVec = &FindPlayerPed(-1)->GetPosition();
 
-        // TODO: Get it to work with CAMERA
-        CMatrix* pMatrix = nullptr; //(CMatrix*)((int)camera + 2300);
-        CVector& pVec = FindPlayerPed(-1)->GetPosition(); //pMatrix->pos;
-
-        bass_tmp.x = pVec.y;
-        bass_tmp.y = pVec.z;
-        bass_tmp.z = pVec.x;
+        bass_tmp.x = pVec->y;
+        bass_tmp.y = pVec->z;
+        bass_tmp.z = pVec->x;
 
         if(pMatrix)
         {
@@ -115,41 +114,28 @@ void CSoundSystem::Update()
             bass_tmp3.x = pMatrix->up.y;
             bass_tmp3.y = pMatrix->up.z;
             bass_tmp3.z = pMatrix->up.x;
+
+            BASS->Set3DPosition(&bass_tmp, NULL, &bass_tmp2, &bass_tmp3);
+        }
+        else
+        {
+            BASS->Set3DPosition(&bass_tmp, NULL, NULL, NULL);
         }
 
-        BASS->Set3DPosition(
-            &bass_tmp,
-            nullptr,
-            pMatrix ? &bass_tmp2 : nullptr,
-            pMatrix ? &bass_tmp3 : nullptr
-        );
-
-        //logger->Info("BASS Camera Pos: %f %f %f", pVec.x, pVec.y, pVec.z);
-        //logger->Info("BASS Camera At: %f %f %f", bass_tmp2.z, bass_tmp2.x, bass_tmp2.y);
-        //logger->Info("BASS Camera Up: %f %f %f", bass_tmp3.z, bass_tmp3.x, bass_tmp3.y);
-
         // process all streams
-        std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) {
-            stream->Process();
-        });
+        std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) { stream->Process(); });
         // apply above changes
         BASS->Apply3D();
     }
 }
 
-CAudioStream::CAudioStream()
-    : streamInternal(0), state(no), OK(false)
-{
-}
-
+CAudioStream::CAudioStream() : streamInternal(0), state(no), OK(false) {}
 CAudioStream::CAudioStream(const char *src) : state(no), OK(false)
 {
     unsigned flags = BASS_SAMPLE_SOFTWARE;
-    if (soundsys->bUseFPAudio)
-        flags |= BASS_SAMPLE_FLOAT;
-    std::string sabc1 = "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/"; sabc1 += src; // Yeah, completely hardcoded. For yet.
-    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, nullptr)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
-        !(streamInternal = BASS->StreamCreateFile(false, sabc1.c_str(), 0, 0, flags)))
+    if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
+    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
+        !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)))
     {
         logger->Error("Loading audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
     }
@@ -242,14 +228,14 @@ void CAudioStream::Process()
     }
 }
 
-void CAudioStream::Set3dPosition(const CVector&)
+void CAudioStream::Set3DPosition(const CVector&)
 {
-    logger->Error("Unimplemented CAudioStream::Set3dPosition(const CVector&)");
+    logger->Error("Unimplemented CAudioStream::Set3DPosition(const CVector&)");
 }
 
-void CAudioStream::Set3dPosition(float, float, float)
+void CAudioStream::Set3DPosition(float, float, float)
 {
-    logger->Error("Unimplemented CAudioStream::Set3dPosition(float,float,float)");
+    logger->Error("Unimplemented CAudioStream::Set3DPosition(float,float,float)");
 }
 
 void CAudioStream::Link(CPlaceable*)
@@ -259,14 +245,12 @@ void CAudioStream::Link(CPlaceable*)
 
 ////////////////// 3D Audiostream //////////////////
 
-C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(nullptr)
+C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
 {
     unsigned flags = BASS_SAMPLE_3D | BASS_SAMPLE_MONO | BASS_SAMPLE_SOFTWARE;
-    if (soundsys->bUseFPAudio)
-        flags |= BASS_SAMPLE_FLOAT;
-    std::string sabc1 = "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/"; sabc1 += src; // Yeah, completely hardcoded. For yet.
-    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, nullptr)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
-        !(streamInternal = BASS->StreamCreateFile(false, sabc1.c_str(), 0, 0, flags)))
+    if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
+    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
+        !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)))
     {
         logger->Error("Loading 3D audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
     }
@@ -282,22 +266,22 @@ C3DAudioStream::~C3DAudioStream()
     if (streamInternal) BASS->StreamFree(streamInternal);
 }
 
-void C3DAudioStream::Set3dPosition(const CVector& pos)
+void C3DAudioStream::Set3DPosition(const CVector& pos)
 {
     position.x = pos.y;
     position.y = pos.z;
     position.z = pos.x;
-    link = nullptr;
-    BASS->ChannelSet3DPosition(streamInternal, &position, nullptr, nullptr);
+    link = NULL;
+    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, NULL);
 }
 
-void C3DAudioStream::Set3dPosition(float x, float y, float z)
+void C3DAudioStream::Set3DPosition(float x, float y, float z)
 {
     position.x = y;
     position.y = z;
     position.z = x;
-    link = nullptr;
-    BASS->ChannelSet3DPosition(streamInternal, &position, nullptr, nullptr);
+    link = NULL;
+    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, NULL);
 }
 
 void C3DAudioStream::Link(CPlaceable *placeable)
@@ -326,18 +310,10 @@ void C3DAudioStream::Process()
         if (link)
         {
             CVector* pVec = &link->GetPosition();
-
-            bass_tmp.x = pVec->y;
-            bass_tmp.y = pVec->z;
-            bass_tmp.z = pVec->x;
-            BASS->ChannelSet3DPosition(streamInternal, &bass_tmp, nullptr, nullptr);
+            position.x = pVec->y;
+            position.y = pVec->z;
+            position.z = pVec->x;
         }
-        else
-        {
-            bass_tmp.x = position.y;
-            bass_tmp.y = position.z;
-            bass_tmp.z = position.x;
-            BASS->ChannelSet3DPosition(streamInternal, &bass_tmp, nullptr, nullptr);
-        }
+        BASS->ChannelSet3DPosition(streamInternal, &position, NULL, NULL);
     }
 }

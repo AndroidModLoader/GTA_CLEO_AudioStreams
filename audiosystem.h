@@ -1,8 +1,6 @@
 #include <set>
 #include "ibass.h"
-#include "vector.h"
-#include "placeable.h"
-#include "matrixlink.h"
+#include "GTASA_STRUCTS.h"
 
 class CSoundSystem;
 class CAudioStream;
@@ -76,9 +74,9 @@ public:
     void Loop(bool enable);
 	uint64_t GetInternal();
     // overloadable actions
-    virtual void Set3dPosition(const CVector& pos);
-    virtual void Set3dPosition(float x, float y, float z);
-    virtual void Link(CPlaceable* placeable = nullptr);
+    virtual void Set3DPosition(const CVector& pos);
+    virtual void Set3DPosition(float x, float y, float z);
+    virtual void Link(CPlaceable* placeable = NULL);
     virtual void Process();
 };
 class C3DAudioStream : public CAudioStream
@@ -92,9 +90,9 @@ public:
     C3DAudioStream(const char *src);
     virtual ~C3DAudioStream();
     // overloaded actions
-    virtual void Set3dPosition(const CVector& pos);
-    virtual void Set3dPosition(float x, float y, float z);
-    virtual void Link(CPlaceable* placeable = nullptr);
+    virtual void Set3DPosition(const CVector& pos);
+    virtual void Set3DPosition(float x, float y, float z);
+    virtual void Link(CPlaceable* placeable = NULL);
     virtual void Process();
 };
 

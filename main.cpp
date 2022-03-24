@@ -1,13 +1,13 @@
 #include <mod/amlmod.h>
 #include <mod/logger.h>
 #include "audiosystem.h"
-#include "camera.h"
+#include "GTASA_STRUCTS.h"
 
 #include "icleo.h"
-ICLEO* cleo = nullptr;
+ICLEO* cleo = NULL;
 
 #include "ibass.h"
-IBASS* BASS = nullptr;
+IBASS* BASS = NULL;
 
 static CSoundSystem soundsysLocal;
 CSoundSystem* soundsys = &soundsysLocal;
@@ -16,12 +16,12 @@ CCamera *camera;
 bool* userPaused;
 bool* codePaused;
 
-CPlaceable* (*GetObjectFromRef)(int) = nullptr;
-CPlaceable* (*GetPedFromRef)(int) = nullptr;
-CPlaceable* (*GetVehicleFromRef)(int) = nullptr;
-CPlaceable* (*FindPlayerPed)(int) = nullptr;
+CObject*    (*GetObjectFromRef)(int) = NULL;
+CPed*       (*GetPedFromRef)(int) = NULL;
+CVehicle*   (*GetVehicleFromRef)(int) = NULL;
+CPlayerPed* (*FindPlayerPed)(int) = NULL;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0.1, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0.2, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.1)
     ADD_DEPENDENCY(net.rusjj.basslib)
@@ -53,7 +53,7 @@ void LOAD_AUDIO_STREAM(__handler_params)
 {
     char param1[256];
     cleo->ReadStringLong(handle, param1, sizeof(param1));
-    param1[sizeof(param1)-1] = 0; // I can't trust CLEO...
+    param1[sizeof(param1)-1] = 0; // I can't trust game scripting engine...
     int i = 0;
     while(param1[i] != 0) // A little hack
     {
@@ -129,7 +129,7 @@ void LOAD_3D_AUDIO_STREAM(__handler_params)
 {
     char param1[256];
     cleo->ReadStringLong(handle, param1, sizeof(param1));
-    param1[sizeof(param1)-1] = 0; // I can't trust CLEO...
+    param1[sizeof(param1)-1] = 0; // I can't trust game scripting engine...
     int i = 0;
     while(param1[i] != 0) // A little hack
     {
@@ -144,7 +144,7 @@ void SET_PLAY_3D_AUDIO_STREAM_AT_COORDS(__handler_params)
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
     if(stream)
     {
-        stream->Set3dPosition(cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f);
+        stream->Set3DPosition(cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f);
     }
 }
 
@@ -197,14 +197,14 @@ extern "C" void OnModLoad()
 
     __print_to_log("Starting AudioStreams...");
     HOOK(UpdateGameLogic, cleo->GetMainLibrarySymbol("_ZN5CGame7ProcessEv"));
-    camera = *(CCamera**)cleo->GetMainLibrarySymbol("TheCamera");
-    userPaused = (bool*)cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE");
-    codePaused = (bool*)cleo->GetMainLibrarySymbol("_ZN6CTimer11m_CodePauseE");
+    SET_TO(camera, cleo->GetMainLibrarySymbol("TheCamera"));
+    SET_TO(userPaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE"));
+    SET_TO(codePaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_CodePauseE"));
 
-    GetObjectFromRef = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi");
-    GetPedFromRef = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi");
-    GetVehicleFromRef = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi");
-    FindPlayerPed = (CPlaceable*(*)(int))cleo->GetMainLibrarySymbol("_Z13FindPlayerPedi");
+    SET_TO(GetObjectFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi"));
+    SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
+    SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
+    SET_TO(FindPlayerPed, cleo->GetMainLibrarySymbol("_Z13FindPlayerPedi"));
 
     __reg_op_func(LOAD_AUDIO_STREAM, LOAD_AUDIO_STREAM);
     __reg_op_func(SET_AUDIO_STREAM_STATE, SET_AUDIO_STREAM_STATE);
