@@ -34,7 +34,7 @@ jobs:
 
     - run: mv ./structs/* ./
 
-    - run: git clone https://github.com/AndroidModLoader/CLEOMod ./cleomod
+    - run: git clone https://github.com/AndroidModLoader/GTA_CLEOMod ./cleomod
 
     - run: mv ./cleomod/cleo.h ./cleo.h
 
