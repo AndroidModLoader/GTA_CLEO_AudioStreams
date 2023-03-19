@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <string>
 
-#include "ibass.h"
 #include "audiosystem.h"
 #include "GTASA_STRUCTS.h"
 #include "mod/logger.h"
@@ -98,9 +97,13 @@ void CSoundSystem::Update()
         if (paused) ResumeStreams();
 
         // TODO: Get it to work with CAMERA (Camera shows me it`s position as 15.9 XYZ...)
-        CMatrix* pMatrix = NULL;
-        CVector* pVec = &FindPlayerPed(-1)->GetPosition();
-
+        //CMatrix* pMatrix = NULL;/
+        //CVector* pVec = &FindPlayerPed(-1)->GetPosition();
+        
+        // Will these work?!
+        CMatrix* pMatrix = &camera->m_matCameraMatrix;
+        CVector* pVec = &camera->m_vecGameCamPos;
+        
         bass_tmp.x = pVec->y;
         bass_tmp.y = pVec->z;
         bass_tmp.z = pVec->x;

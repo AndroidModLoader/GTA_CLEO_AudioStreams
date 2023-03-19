@@ -3,10 +3,9 @@
 #include "audiosystem.h"
 #include "GTASA_STRUCTS.h"
 
-#include "icleo.h"
-ICLEO* cleo = NULL;
+#include "cleo.h"
+cleo_ifs_t* cleo = NULL;
 
-#include "ibass.h"
 IBASS* BASS = NULL;
 
 static CSoundSystem soundsysLocal;
@@ -21,9 +20,9 @@ CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
 CPlayerPed* (*FindPlayerPed)(int) = NULL;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0.2, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0.3, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
-    ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.1)
+    ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.3)
     ADD_DEPENDENCY(net.rusjj.basslib)
 END_DEPLIST()
 
@@ -184,7 +183,7 @@ DECL_HOOK(void*, UpdateGameLogic, uintptr_t a1)
 extern "C" void OnModLoad()
 {
     logger->SetTag("[CLEO] AudioStreams");
-	if(!(cleo = (ICLEO*)GetInterface("CLEO")))
+	if(!(cleo = (cleo_ifs_t*)GetInterface("CLEO")))
     {
         logger->Error("Cannot load: CLEO interface is unknown!");
         return;
