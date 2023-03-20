@@ -78,7 +78,7 @@ void SET_AUDIO_STREAM_STATE(__handler_params)
         case 2: stream->Pause();  break;
         case 3: stream->Resume(); break;
         default:
-            logger->Error("[%X] Unknown Audiostream's action: %d", opcode, action);
+            logger->Error("[%X] Unknown Audiostream's action: %d", opcode, action); break;
     }
 }
 

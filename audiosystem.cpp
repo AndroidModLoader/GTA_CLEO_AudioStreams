@@ -3,6 +3,7 @@
 
 #include "audiosystem.h"
 #include "GTASA_STRUCTS.h"
+#include "mod/amlmod.h"
 #include "mod/logger.h"
 
 BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0, 0), top(0, 0, 1.0);
@@ -12,10 +13,11 @@ extern bool* userPaused;
 extern bool* codePaused;
 extern CPlayerPed* (*FindPlayerPed)(int);
 
-std::string sGameRoot = "/storage/emulated/0/Android/data/com.rockstargames.gtasa/files/";
+std::string sGameRoot;
 
 bool CSoundSystem::Init()
 {
+    sGameRoot = aml->GetAndroidDataPath();
     if (BASS->Set3DFactors(1.0f, 0.3f, 1.0f) && BASS->Set3DPosition(&pos, &vel, &front, &top))
     {
         logger->Info("Initializing SoundSystem...");
@@ -185,14 +187,16 @@ int CAudioStream::GetState()
     if (state == stopped) return -1;
     switch (BASS->ChannelIsActive(streamInternal))
     {
-    case BASS_ACTIVE_STOPPED:
-    default:
-        return -1;
-    case BASS_ACTIVE_PLAYING:
-    case BASS_ACTIVE_STALLED:
-        return 1;
-    case BASS_ACTIVE_PAUSED:
-        return 2;
+        case BASS_ACTIVE_STOPPED:
+        default:
+            return -1;
+            
+        case BASS_ACTIVE_PLAYING:
+        case BASS_ACTIVE_STALLED:
+            return 1;
+            
+        case BASS_ACTIVE_PAUSED:
+            return 2;
     };
 }
 
@@ -218,16 +222,18 @@ void CAudioStream::Process()
 {
     switch (BASS->ChannelIsActive(streamInternal))
     {
-    case BASS_ACTIVE_PAUSED:
-        state = paused;
-        break;
-    case BASS_ACTIVE_PLAYING:
-    case BASS_ACTIVE_STALLED:
-        state = playing;
-        break;
-    case BASS_ACTIVE_STOPPED:
-        state = stopped;
-        break;
+        case BASS_ACTIVE_PAUSED:
+            state = paused;
+            break;
+            
+        case BASS_ACTIVE_PLAYING:
+        case BASS_ACTIVE_STALLED:
+            state = playing;
+            break;
+            
+        case BASS_ACTIVE_STOPPED:
+            state = stopped;
+            break;
     }
 }
 
@@ -297,16 +303,18 @@ void C3DAudioStream::Process()
     // update playing position of the linked object
     switch (BASS->ChannelIsActive(streamInternal))
     {
-    case BASS_ACTIVE_PAUSED:
-        state = paused;
-        break;
-    case BASS_ACTIVE_PLAYING:
-    case BASS_ACTIVE_STALLED:
-        state = playing;
-        break;
-    case BASS_ACTIVE_STOPPED:
-        state = stopped;
-        break;
+        case BASS_ACTIVE_PAUSED:
+            state = paused;
+            break;
+            
+        case BASS_ACTIVE_PLAYING:
+        case BASS_ACTIVE_STALLED:
+            state = playing;
+            break;
+            
+        case BASS_ACTIVE_STOPPED:
+            state = stopped;
+            break;
     }
     if (state == playing)
     {
