@@ -84,8 +84,8 @@ class C3DAudioStream : public CAudioStream
     friend class CSoundSystem;
     C3DAudioStream(const C3DAudioStream&);
 protected:
-    CPlaceable	*	link;
-    BASS_3DVECTOR	position;
+    CPlaceable*     link;
+    BASS_3DVECTOR   position;
 public:
     C3DAudioStream(const char *src);
     virtual ~C3DAudioStream();

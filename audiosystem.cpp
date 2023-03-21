@@ -103,7 +103,7 @@ void CSoundSystem::Update()
         //CVector* pVec = &FindPlayerPed(-1)->GetPosition();
         
         // Will these work?!
-        CMatrix* pMatrix = &camera->m_matCameraMatrix;
+        /*CMatrix* pMatrix = &camera->m_matCameraMatrix;
         CVector* pVec = &camera->m_vecGameCamPos;
         
         bass_tmp.x = pVec->y;
@@ -125,7 +125,26 @@ void CSoundSystem::Update()
         else
         {
             BASS->Set3DPosition(&bass_tmp, NULL, NULL, NULL);
-        }
+        }*/
+        
+        CCam& cam = camera->m_apCams[camera->m_nCurrentActiveCam];
+        
+        // Pos
+        bass_tmp.x = cam.Source.y;
+        bass_tmp.y = cam.Source.z;
+        bass_tmp.z = cam.Source.x;
+        
+        // At (Front)
+        bass_tmp2.x = cam.Front.y;
+        bass_tmp2.y = cam.Front.z;
+        bass_tmp2.z = cam.Front.x;
+        
+        // Up
+        bass_tmp3.x = cam.Up.y;
+        bass_tmp3.y = cam.Up.z;
+        bass_tmp3.z = cam.Up.x;
+        
+        BASS->Set3DPosition(&bass_tmp, NULL, &bass_tmp2, &bass_tmp3);
 
         // process all streams
         std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) { stream->Process(); });
@@ -316,6 +335,7 @@ void C3DAudioStream::Process()
             state = stopped;
             break;
     }
+    
     if (state == playing)
     {
         if (link)
