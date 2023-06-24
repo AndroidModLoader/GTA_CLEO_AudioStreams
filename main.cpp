@@ -34,19 +34,19 @@ END_DEPLIST()
 #define __op_name_match(x) 			opcode == OP_##x || strcmp(name, NAME_##x) == 0
 #define __reg_op_func(x, h) 		__reg_opcode(OP_##x, h); __reg_func(NAME_##x, h);
 
-__decl_op(LOAD_AUDIO_STREAM, 0x0AAC); // 0AAC=2,%2d% = load_audio_stream %1d%
-__decl_op(SET_AUDIO_STREAM_STATE, 0x0AAD); // 0AAD=2,set_audio_stream %1d% state %2d%
-__decl_op(REMOVE_AUDIO_STREAM, 0x0AAE); // 0AAE=1,remove_audio_stream %1d%
-__decl_op(GET_AUDIO_STREAM_LENGTH, 0x0AAF); // 0AAF=2,%2d% = get_audio_stream_length %1d%
-__decl_op(GET_AUDIO_STREAM_STATE, 0x0AB9); // 0AB9=2,get_audio_stream %1d% state_to %2d%
-__decl_op(GET_AUDIO_STREAM_VOLUME, 0x0ABB); // 0ABB=2,%2d% = audio_stream %1d% volume
-__decl_op(SET_AUDIO_STREAM_VOLUME, 0x0ABC); // 0ABC=2,set_audio_stream %1d% volume %2d%
-__decl_op(SET_AUDIO_STREAM_LOOPED, 0x0AC0); // 0AC0=2,set_audio_stream %1d% looped %2d%
-__decl_op(LOAD_3D_AUDIO_STREAM, 0x0AC1); // 0AC1=2,%2d% = load_audio_stream_with_3d_support %1d% ; IF and SET
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS, 0x0AC2); // 0AC2=4,link_3d_audio_stream %1d% at_coords %2d% %3d% %4d%
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT, 0x0AC3); // 0AC3=2,link_3d_audio_stream %1d% to_object %2d%
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR, 0x0AC4); // 0AC4=2,link_3d_audio_stream %1d% to_actor %2d%
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CAR, 0x0AC5); // 0AC5=2,link_3d_audio_stream %1d% to_car %2d%
+__decl_op(LOAD_AUDIO_STREAM, 0x0AAC);                   // 0AAC=2,%2d% = load_audio_stream %1d%
+__decl_op(SET_AUDIO_STREAM_STATE, 0x0AAD);              // 0AAD=2,set_audio_stream %1d% state %2d%
+__decl_op(REMOVE_AUDIO_STREAM, 0x0AAE);                 // 0AAE=1,remove_audio_stream %1d%
+__decl_op(GET_AUDIO_STREAM_LENGTH, 0x0AAF);             // 0AAF=2,%2d% = get_audio_stream_length %1d%
+__decl_op(GET_AUDIO_STREAM_STATE, 0x0AB9);              // 0AB9=2,get_audio_stream %1d% state_to %2d%
+__decl_op(GET_AUDIO_STREAM_VOLUME, 0x0ABB);             // 0ABB=2,%2d% = audio_stream %1d% volume
+__decl_op(SET_AUDIO_STREAM_VOLUME, 0x0ABC);             // 0ABC=2,set_audio_stream %1d% volume %2d%
+__decl_op(SET_AUDIO_STREAM_LOOPED, 0x0AC0);             // 0AC0=2,set_audio_stream %1d% looped %2d%
+__decl_op(LOAD_3D_AUDIO_STREAM, 0x0AC1);                // 0AC1=2,%2d% = load_audio_stream_with_3d_support %1d% ; IF and SET
+__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS, 0x0AC2);  // 0AC2=4,link_3d_audio_stream %1d% at_coords %2d% %3d% %4d%
+__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT, 0x0AC3);  // 0AC3=2,link_3d_audio_stream %1d% to_object %2d%
+__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR, 0x0AC4);    // 0AC4=2,link_3d_audio_stream %1d% to_actor %2d%
+__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CAR, 0x0AC5);     // 0AC5=2,link_3d_audio_stream %1d% to_car %2d%
 
 void LOAD_AUDIO_STREAM(__handler_params)
 {
