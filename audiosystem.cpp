@@ -98,53 +98,19 @@ void CSoundSystem::Update()
     {
         if (paused) ResumeStreams();
 
-        // TODO: Get it to work with CAMERA (Camera shows me it`s position as 15.9 XYZ...)
-        //CMatrix* pMatrix = NULL;/
-        //CVector* pVec = &FindPlayerPed(-1)->GetPosition();
-        
-        // Will these work?!
-        /*CMatrix* pMatrix = &camera->m_matCameraMatrix;
-        CVector* pVec = &camera->m_vecGameCamPos;
-        
-        bass_tmp.x = pVec->y;
-        bass_tmp.y = pVec->z;
-        bass_tmp.z = pVec->x;
-
-        if(pMatrix)
+        CMatrixLink * pMatrix = nullptr;
+        CVector * pVec = nullptr;
+        if (camera->m_matrix)
         {
-            bass_tmp2.x = pMatrix->at.y;
-            bass_tmp2.y = pMatrix->at.z;
-            bass_tmp2.z = pMatrix->at.x;
-
-            bass_tmp3.x = pMatrix->up.y;
-            bass_tmp3.y = pMatrix->up.z;
-            bass_tmp3.z = pMatrix->up.x;
-
-            BASS->Set3DPosition(&bass_tmp, NULL, &bass_tmp2, &bass_tmp3);
+            pMatrix = camera->m_matrix;
+            pVec = &pMatrix->pos;
         }
-        else
-        {
-            BASS->Set3DPosition(&bass_tmp, NULL, NULL, NULL);
-        }*/
-        
-        CCam& cam = camera->m_apCams[camera->m_nCurrentActiveCam];
-        
-        // Pos
-        bass_tmp.x = cam.Source.y;
-        bass_tmp.y = cam.Source.z;
-        bass_tmp.z = cam.Source.x;
-        
-        // At (Front)
-        bass_tmp2.x = cam.Front.y;
-        bass_tmp2.y = cam.Front.z;
-        bass_tmp2.z = cam.Front.x;
-        
-        // Up
-        bass_tmp3.x = cam.Up.y;
-        bass_tmp3.y = cam.Up.z;
-        bass_tmp3.z = cam.Up.x;
-        
-        BASS->Set3DPosition(&bass_tmp, NULL, &bass_tmp2, &bass_tmp3);
+        else pVec = &camera->m_placement.m_vPosn;
+
+        bass_tmp = {pVec->y, pVec->z, pVec->x};
+        bass_tmp2 = {pMatrix->at.y, pMatrix->at.z, pMatrix->at.x};
+        bass_tmp3 = {pMatrix->up.y, pMatrix->up.z, pMatrix->up.x};
+        BASS->Set3DPosition( &bass_tmp, nullptr, pMatrix ? &bass_tmp2 : nullptr, pMatrix ? &bass_tmp3 : nullptr);
 
         // process all streams
         std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) { stream->Process(); });

@@ -20,7 +20,7 @@ CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
 CPlayerPed* (*FindPlayerPed)(int) = NULL;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.0.3, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.1, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.3)
     ADD_DEPENDENCY(net.rusjj.basslib)
