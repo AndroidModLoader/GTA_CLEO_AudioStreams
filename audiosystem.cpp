@@ -196,7 +196,7 @@ void CAudioStream::SetVolume(float val)
 {
     BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_VOL, val);
 }
-
+ 
 void CAudioStream::Loop(bool enable)
 {
     BASS->ChannelFlags(streamInternal, enable ? BASS_SAMPLE_LOOP : 0, BASS_SAMPLE_LOOP);

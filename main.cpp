@@ -19,8 +19,9 @@ CObject*    (*GetObjectFromRef)(int) = NULL;
 CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
 CPlayerPed* (*FindPlayerPed)(int) = NULL;
+void        (*UpdateCompareFlag)(void*, uint8_t) = NULL;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.1, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.2, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.3)
     ADD_DEPENDENCY(net.rusjj.basslib)
@@ -48,10 +49,53 @@ __decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT, 0x0AC3);  // 0AC3=2,link_3d_audio_
 __decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR, 0x0AC4);    // 0AC4=2,link_3d_audio_stream %1d% to_actor %2d%
 __decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CAR, 0x0AC5);     // 0AC5=2,link_3d_audio_stream %1d% to_car %2d%
 
+inline int GetPCOffset()
+{
+    switch(cleo->GetGameIdentifier())
+    {
+        case GTASA: return 20;
+        case GTALCS: return 24;
+
+        default: return 16;
+    }
+}
+inline char* CLEO_ReadStringEx(void* handle, char* buf, size_t size)
+{
+    uint8_t byte = **(uint8_t**)((int)handle + GetPCOffset());
+    if(byte <= 8) return NULL; // Not a string
+
+    static char newBuf[128];
+    if(!buf || size < 1) buf = (char*)newBuf;
+
+    switch(byte)
+    {
+        case 0x9:
+            cleo->ReadParam(handle); // Need to collect results before that
+            return cleo->ReadString8byte(handle, buf, size) ? buf : NULL;
+            
+        case 0xA:
+        case 0xB:
+        case 0x10:
+        case 0x11:
+        {
+            size = (size > 16) ? 16 : size;
+            memcpy(buf, (char*)cleo->GetPointerToScriptVar(handle), size);
+            buf[size-1] = 0;
+            return buf;
+        }
+
+        default:
+        {
+            return cleo->ReadStringLong(handle, buf, size) ? buf : NULL;
+        }
+    }
+    return buf;
+}
+
 void LOAD_AUDIO_STREAM(__handler_params)
 {
     char param1[256];
-    cleo->ReadStringLong(handle, param1, sizeof(param1));
+    CLEO_ReadStringEx(handle, param1, sizeof(param1));
     param1[sizeof(param1)-1] = 0; // I can't trust game scripting engine...
     int i = 0;
     while(param1[i] != 0) // A little hack
@@ -123,11 +167,10 @@ void SET_AUDIO_STREAM_LOOPED(__handler_params)
     if(stream) stream->Loop(cleo->ReadParam(handle)->i != 0);
 }
 
-
 void LOAD_3D_AUDIO_STREAM(__handler_params)
 {
     char param1[256];
-    cleo->ReadStringLong(handle, param1, sizeof(param1));
+    CLEO_ReadStringEx(handle, param1, sizeof(param1));
     param1[sizeof(param1)-1] = 0; // I can't trust game scripting engine...
     int i = 0;
     while(param1[i] != 0) // A little hack
@@ -135,7 +178,9 @@ void LOAD_3D_AUDIO_STREAM(__handler_params)
         if(param1[i] == '\\') param1[i] = '/';
         ++i;
     }
-    cleo->GetPointerToScriptVar(handle)->u = (uint32_t)soundsys->LoadStream(param1, true);
+    auto stream = soundsys->LoadStream(param1, true);
+    cleo->GetPointerToScriptVar(handle)->u = (uint32_t)stream;
+    UpdateCompareFlag(handle, stream != NULL);
 }
 
 void SET_PLAY_3D_AUDIO_STREAM_AT_COORDS(__handler_params)
@@ -179,6 +224,11 @@ DECL_HOOK(void*, UpdateGameLogic, uintptr_t a1)
     soundsys->Update();
     return UpdateGameLogic(a1);
 }
+DECL_HOOKv(PauseOpenAL, void* self, int doPause)
+{
+    PauseOpenAL(self, doPause);
+    doPause ? soundsys->PauseStreams() : soundsys->ResumeStreams();
+}
 
 extern "C" void OnModLoad()
 {
@@ -195,7 +245,9 @@ extern "C" void OnModLoad()
     }
 
     __print_to_log("Starting AudioStreams...");
-    HOOK(UpdateGameLogic, cleo->GetMainLibrarySymbol("_ZN5CGame7ProcessEv"));
+    uintptr_t gameAddr = (uintptr_t)cleo->GetMainLibraryLoadAddress();
+    HOOKPLT(UpdateGameLogic, gameAddr + 0x66FE58);
+    HOOKPLT(PauseOpenAL, gameAddr + 0x674BE0);
     SET_TO(camera, cleo->GetMainLibrarySymbol("TheCamera"));
     SET_TO(userPaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE"));
     SET_TO(codePaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_CodePauseE"));
@@ -204,6 +256,7 @@ extern "C" void OnModLoad()
     SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
     SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
     SET_TO(FindPlayerPed, cleo->GetMainLibrarySymbol("_Z13FindPlayerPedi"));
+    SET_TO(UpdateCompareFlag, cleo->GetMainLibrarySymbol("_ZN14CRunningScript17UpdateCompareFlagEh"));
 
     __reg_op_func(LOAD_AUDIO_STREAM, LOAD_AUDIO_STREAM);
     __reg_op_func(SET_AUDIO_STREAM_STATE, SET_AUDIO_STREAM_STATE);
