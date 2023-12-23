@@ -1,6 +1,6 @@
 #include <set>
+#include "SimpleGTA.h"
 #include "ibass.h"
-#include "GTASA_STRUCTS.h"
 
 class CSoundSystem;
 class CAudioStream;

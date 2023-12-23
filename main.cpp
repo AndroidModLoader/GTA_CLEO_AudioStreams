@@ -1,11 +1,9 @@
 #include <mod/amlmod.h>
 #include <mod/logger.h>
 #include "audiosystem.h"
-#include "GTASA_STRUCTS.h"
 
 #include "cleo.h"
 cleo_ifs_t* cleo = NULL;
-
 IBASS* BASS = NULL;
 
 static CSoundSystem soundsysLocal;
@@ -15,25 +13,26 @@ CCamera *camera;
 bool* userPaused;
 bool* codePaused;
 
+int nGameLoaded = -1;
+
 CObject*    (*GetObjectFromRef)(int) = NULL;
 CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
-CPlayerPed* (*FindPlayerPed)(int) = NULL;
 void        (*UpdateCompareFlag)(void*, uint8_t) = NULL;
 
 MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.2, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
-    ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.3)
+    ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.4)
     ADD_DEPENDENCY(net.rusjj.basslib)
 END_DEPLIST()
 
-#define __decl_op(__name, __int)	const char* NAME_##__name = #__name; const uint16_t OP_##__name = __int;
-#define __print_to_log(__str)		cleo->PrintToCleoLog(__str); logger->Info(__str)
-#define __reg_opcode				cleo->RegisterOpcode
-#define __reg_func					cleo->RegisterOpcodeFunction
-#define __handler_params 			void *handle, uint32_t *ip, uint16_t opcode, const char *name
-#define __op_name_match(x) 			opcode == OP_##x || strcmp(name, NAME_##x) == 0
-#define __reg_op_func(x, h) 		__reg_opcode(OP_##x, h); __reg_func(NAME_##x, h);
+#define __decl_op(__name, __int)    const char* NAME_##__name = #__name; const uint16_t OP_##__name = __int;
+#define __print_to_log(__str)       cleo->PrintToCleoLog(__str); logger->Info(__str)
+#define __reg_opcode                cleo->RegisterOpcode
+#define __reg_func                  cleo->RegisterOpcodeFunction
+#define __handler_params            void *handle, uint32_t *ip, uint16_t opcode, const char *name
+#define __op_name_match(x)          opcode == OP_##x || strcmp(name, NAME_##x) == 0
+#define __reg_op_func(x, h)         __reg_opcode(OP_##x, h); __reg_func(NAME_##x, h);
 
 __decl_op(LOAD_AUDIO_STREAM, 0x0AAC);                   // 0AAC=2,%2d% = load_audio_stream %1d%
 __decl_op(SET_AUDIO_STREAM_STATE, 0x0AAD);              // 0AAD=2,set_audio_stream %1d% state %2d%
@@ -59,9 +58,17 @@ inline int GetPCOffset()
         default: return 16;
     }
 }
+inline uint8_t*& GetPC(void* handle)
+{
+    return *(uint8_t**)((uintptr_t)handle + GetPCOffset());
+}
+inline uint8_t* GetPC_CLEO(void* handle) // weird-ass trash from CLEO for VC *facepalm*
+{
+    return (uint8_t*)cleo->GetRealCodePointer(*(uint32_t*)((uintptr_t)handle + GetPCOffset()));
+}
 inline char* CLEO_ReadStringEx(void* handle, char* buf, size_t size)
 {
-    uint8_t byte = **(uint8_t**)((int)handle + GetPCOffset());
+    uint8_t byte = *(cleo->GetGameIdentifier() == GTASA ? GetPC(handle) : GetPC_CLEO(handle));
     if(byte <= 8) return NULL; // Not a string
 
     static char newBuf[128];
@@ -70,9 +77,9 @@ inline char* CLEO_ReadStringEx(void* handle, char* buf, size_t size)
     switch(byte)
     {
         case 0x9:
-            cleo->ReadParam(handle); // Need to collect results before that
+            GetPC(handle) += 1;
             return cleo->ReadString8byte(handle, buf, size) ? buf : NULL;
-            
+
         case 0xA:
         case 0xB:
         case 0x10:
@@ -85,9 +92,7 @@ inline char* CLEO_ReadStringEx(void* handle, char* buf, size_t size)
         }
 
         default:
-        {
             return cleo->ReadStringLong(handle, buf, size) ? buf : NULL;
-        }
     }
     return buf;
 }
@@ -111,7 +116,7 @@ void SET_AUDIO_STREAM_STATE(__handler_params)
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(!stream)
     {
-        logger->Error("[%X] Trying to do an action on zero audiostream", opcode);
+        logger->Error("[%04X] Trying to do an action on zero audiostream", opcode);
         return;
     }
     int action = cleo->ReadParam(handle)->i;
@@ -122,7 +127,7 @@ void SET_AUDIO_STREAM_STATE(__handler_params)
         case 2: stream->Pause();  break;
         case 3: stream->Resume(); break;
         default:
-            logger->Error("[%X] Unknown Audiostream's action: %d", opcode, action); break;
+            logger->Error("[%04X] Unknown Audiostream's action: %d", opcode, action); break;
     }
 }
 
@@ -131,7 +136,7 @@ void REMOVE_AUDIO_STREAM(__handler_params)
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(!stream)
     {
-        logger->Error("[%X] Trying to remove zero audiostream", opcode);
+        logger->Error("[%04X] Trying to remove zero audiostream", opcode);
         return;
     }
     soundsys->UnloadStream(stream);
@@ -219,43 +224,71 @@ void SET_PLAY_3D_AUDIO_STREAM_AT_CAR(__handler_params)
     }
 }
 
-DECL_HOOK(void*, UpdateGameLogic, uintptr_t a1)
-{
-    soundsys->Update();
-    return UpdateGameLogic(a1);
-}
 DECL_HOOKv(PauseOpenAL, void* self, int doPause)
 {
     PauseOpenAL(self, doPause);
     doPause ? soundsys->PauseStreams() : soundsys->ResumeStreams();
 }
+DECL_HOOK(void*, UpdateGameLogic, uintptr_t a1)
+{
+    soundsys->Update();
+    return UpdateGameLogic(a1);
+}
+DECL_HOOKv(StartUserPause) // VC
+{
+    StartUserPause();
+    soundsys->PauseStreams();
+}
+DECL_HOOKv(UpdateTimer) // VC
+{
+    UpdateTimer();
+    soundsys->ResumeStreams();
+}
 
 extern "C" void OnModLoad()
 {
     logger->SetTag("[CLEO] AudioStreams");
-	if(!(cleo = (cleo_ifs_t*)GetInterface("CLEO")))
+    if(!(cleo = (cleo_ifs_t*)GetInterface("CLEO")))
     {
-        logger->Error("Cannot load: CLEO interface is unknown!");
+        logger->Error("Cannot load: CLEO interface is not found!");
         return;
     }
     if(!(BASS = (IBASS*)GetInterface("BASS")))
     {
-        logger->Error("Cannot load: BASS interface is unknown!");
+        logger->Error("Cannot load: BASS interface is not found!");
         return;
     }
 
     __print_to_log("Starting AudioStreams...");
     uintptr_t gameAddr = (uintptr_t)cleo->GetMainLibraryLoadAddress();
-    HOOKPLT(UpdateGameLogic, gameAddr + 0x66FE58);
-    HOOKPLT(PauseOpenAL, gameAddr + 0x674BE0);
     SET_TO(camera, cleo->GetMainLibrarySymbol("TheCamera"));
     SET_TO(userPaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE"));
     SET_TO(codePaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_CodePauseE"));
 
+    if((uintptr_t)camera == gameAddr + 0x951FA8) nGameLoaded = 0; // SA 2.00
+    else if((uintptr_t)camera == gameAddr + 0x595420) nGameLoaded = 1; // VC 1.09
+    else
+    {
+        __print_to_log("The loaded game is not GTA:SA v2.00 or GTA:VC v1.09. Aborting...");
+        return;
+    }
+
+    if(nGameLoaded == 0)
+    {
+        HOOKPLT(UpdateGameLogic, gameAddr + 0x66FE58);
+        HOOKPLT(PauseOpenAL, gameAddr + 0x674BE0);
+    }
+    else
+    {
+        HOOKBL(UpdateGameLogic, gameAddr + 0x14ECD2 + 0x1);
+        HOOKBL(StartUserPause, gameAddr + 0x21E4C0 + 0x1);
+        HOOKBL(UpdateTimer, gameAddr + 0x21E3AE + 0x1);
+    }
+    
+
     SET_TO(GetObjectFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi"));
     SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
     SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
-    SET_TO(FindPlayerPed, cleo->GetMainLibrarySymbol("_Z13FindPlayerPedi"));
     SET_TO(UpdateCompareFlag, cleo->GetMainLibrarySymbol("_ZN14CRunningScript17UpdateCompareFlagEh"));
 
     __reg_op_func(LOAD_AUDIO_STREAM, LOAD_AUDIO_STREAM);

@@ -2,16 +2,18 @@
 #include <string>
 
 #include "audiosystem.h"
-#include "GTASA_STRUCTS.h"
 #include "mod/amlmod.h"
 #include "mod/logger.h"
+
+#include "cleo.h"
+extern cleo_ifs_t* cleo;
 
 BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0, 0), top(0, 0, 1.0);
 BASS_3DVECTOR bass_tmp(0.0f, 0.0f, 0.0f), bass_tmp2(0.0f, 0.0f, 0.0f), bass_tmp3(0.0f, 0.0f, 0.0f);
 extern CCamera *camera;
 extern bool* userPaused;
 extern bool* codePaused;
-extern CPlayerPed* (*FindPlayerPed)(int);
+extern int nGameLoaded;
 
 std::string sGameRoot;
 
@@ -98,14 +100,8 @@ void CSoundSystem::Update()
     {
         if (paused) ResumeStreams();
 
-        CMatrixLink * pMatrix = nullptr;
-        CVector * pVec = nullptr;
-        if (camera->m_matrix)
-        {
-            pMatrix = camera->m_matrix;
-            pVec = &pMatrix->pos;
-        }
-        else pVec = &camera->m_placement.m_vPosn;
+        CMatrix* pMatrix = nGameLoaded == 1 ? camera->GetCamMatVC() : camera->GetMatSA();
+        CVector* pVec = &pMatrix->pos;
 
         bass_tmp = {pVec->y, pVec->z, pVec->x};
         bass_tmp2 = {pMatrix->at.y, pMatrix->at.z, pMatrix->at.x};
@@ -125,7 +121,8 @@ CAudioStream::CAudioStream(const char *src) : state(no), OK(false)
     unsigned flags = BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
     if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
-        !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)))
+        !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)) &&
+        !(streamInternal = BASS->StreamCreateFile(false, (std::string(cleo->GetCleoStorageDir()) + "/" + src).c_str(), 0, 0, flags)))
     {
         logger->Error("Loading audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
     }
@@ -244,7 +241,8 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
     unsigned flags = BASS_SAMPLE_3D | BASS_SAMPLE_MONO | BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
     if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
-        !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)))
+        !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)) &&
+        !(streamInternal = BASS->StreamCreateFile(false, (std::string(cleo->GetCleoStorageDir()) + "/" + src).c_str(), 0, 0, flags)))
     {
         logger->Error("Loading 3D audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
     }
@@ -306,7 +304,7 @@ void C3DAudioStream::Process()
     {
         if (link)
         {
-            CVector* pVec = &link->GetPosition();
+            CVector* pVec = nGameLoaded==1 ? link->GetPosVC() : link->GetPosSA();
             position.x = pVec->y;
             position.y = pVec->z;
             position.z = pVec->x;
