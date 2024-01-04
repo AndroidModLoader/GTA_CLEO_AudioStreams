@@ -229,6 +229,21 @@ DECL_HOOKv(PauseOpenAL, void* self, int doPause)
     PauseOpenAL(self, doPause);
     doPause ? soundsys->PauseStreams() : soundsys->ResumeStreams();
 }
+DECL_HOOKv(GameShutdown)
+{
+    GameShutdown();
+    soundsys->UnloadAllStreams();
+}
+DECL_HOOKv(GameShutdownEngine)
+{
+    GameShutdownEngine();
+    soundsys->UnloadAllStreams();
+}
+DECL_HOOKv(GameRestart)
+{
+    GameRestart();
+    soundsys->UnloadAllStreams();
+}
 DECL_HOOK(void*, UpdateGameLogic, uintptr_t a1)
 {
     soundsys->Update();
@@ -273,16 +288,22 @@ extern "C" void OnModLoad()
         return;
     }
 
-    if(nGameLoaded == 0)
+    if(nGameLoaded == 0) // GTA:SA
     {
         HOOKPLT(UpdateGameLogic, gameAddr + 0x66FE58);
         HOOKPLT(PauseOpenAL, gameAddr + 0x674BE0);
+        HOOKPLT(GameShutdown, gameAddr + 0x672864);
+        HOOKPLT(GameShutdownEngine, gameAddr + 0x6756F0);
+        HOOKPLT(GameRestart, gameAddr + 0x6731A0);
     }
-    else
+    else // GTA:VC ?
     {
         HOOKBL(UpdateGameLogic, gameAddr + 0x14ECD2 + 0x1);
         HOOKBL(StartUserPause, gameAddr + 0x21E4C0 + 0x1);
         HOOKBL(UpdateTimer, gameAddr + 0x21E3AE + 0x1);
+        HOOKBL(GameShutdown, gameAddr + 0x21E02E + 0x1); HOOKBL(GameShutdown, gameAddr + 0x21E9B4 + 0x1);
+        HOOKBL(GameShutdownEngine, gameAddr + 0x14F078 + 0x1);
+        HOOKBL(GameRestart, gameAddr + 0x14CCA6 + 0x1); HOOKBL(GameRestart, gameAddr + 0x21E8AA + 0x1);
     }
     
 
