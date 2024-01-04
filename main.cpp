@@ -69,30 +69,40 @@ inline uint8_t* GetPC_CLEO(void* handle) // weird-ass trash from CLEO for VC *fa
 inline char* CLEO_ReadStringEx(void* handle, char* buf, size_t size)
 {
     uint8_t byte = *(cleo->GetGameIdentifier() == GTASA ? GetPC(handle) : GetPC_CLEO(handle));
-    if(byte <= 8) return NULL; // Not a string
 
     static char newBuf[128];
     if(!buf || size < 1) buf = (char*)newBuf;
 
     switch(byte)
     {
-        case 0x9:
+        default:
+            return cleo->ReadStringLong(handle, buf, size) ? buf : NULL;
+            
+        case 0x09:
             GetPC(handle) += 1;
             return cleo->ReadString8byte(handle, buf, size) ? buf : NULL;
 
-        case 0xA:
-        case 0xB:
+        case 0x0A:
+        case 0x0B:
+        case 0x0C:
+        case 0x0D:
+        {
+            size = (size > 8) ? 8 : size;
+            memcpy(buf, (char*)cleo->GetPointerToScriptVar(handle), size);
+            buf[size-1] = 0;
+            return buf;
+        }
+
         case 0x10:
         case 0x11:
+        case 0x12:
+        case 0x13:
         {
             size = (size > 16) ? 16 : size;
             memcpy(buf, (char*)cleo->GetPointerToScriptVar(handle), size);
             buf[size-1] = 0;
             return buf;
         }
-
-        default:
-            return cleo->ReadStringLong(handle, buf, size) ? buf : NULL;
     }
     return buf;
 }
