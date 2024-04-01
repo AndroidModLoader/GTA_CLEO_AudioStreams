@@ -14,8 +14,14 @@ extern CCamera *camera;
 extern bool* userPaused;
 extern bool* codePaused;
 extern int nGameLoaded;
+extern uint32_t* m_snTimeInMillisecondsNonClipped;
+extern uint32_t* m_snPreviousTimeInMillisecondsNonClipped;
+extern float* ms_fTimeScale;
 
 std::string sGameRoot;
+float CSoundSystem::masterSpeed = 1.0f;
+float CSoundSystem::masterVolumeSfx = 1.0f;
+float CSoundSystem::masterVolumeMusic = 1.0f;
 
 bool CSoundSystem::Init()
 {
@@ -78,7 +84,7 @@ void CSoundSystem::ResumeStreams()
 {
     paused = false;
     std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) {
-        if (stream->state == CAudioStream::playing) stream->Resume();
+        if (stream->state == eStreamState::Playing) stream->Resume();
     });
 }
 
@@ -86,7 +92,7 @@ void CSoundSystem::PauseStreams()
 {
     paused = true;
     std::for_each(streams.begin(), streams.end(), [](CAudioStream *stream) {
-        if (stream->state == CAudioStream::playing) stream->Pause(false);
+        if (stream->state == eStreamState::Playing) stream->Pause(false);
     });
 }
 
@@ -100,12 +106,17 @@ void CSoundSystem::Update()
     {
         if (paused) ResumeStreams();
 
+        masterSpeed = *ms_fTimeScale;
+
         CMatrix* pMatrix = nGameLoaded == 1 ? camera->GetCamMatVC() : camera->GetMatSA();
         CVector* pVec = &pMatrix->pos;
 
         bass_tmp = {pVec->y, pVec->z, pVec->x};
         bass_tmp2 = {pMatrix->at.y, pMatrix->at.z, pMatrix->at.x};
         bass_tmp3 = {pMatrix->up.y, pMatrix->up.z, pMatrix->up.x};
+
+        // TODO: Doppler effect here
+
         BASS->Set3DPosition( &bass_tmp, nullptr, pMatrix ? &bass_tmp2 : nullptr, pMatrix ? &bass_tmp3 : nullptr);
 
         // process all streams
@@ -115,8 +126,8 @@ void CSoundSystem::Update()
     }
 }
 
-CAudioStream::CAudioStream() : streamInternal(0), state(no), OK(false) {}
-CAudioStream::CAudioStream(const char *src) : state(no), OK(false)
+CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::NoState), OK(false) {}
+CAudioStream::CAudioStream(const char *src) : state(eStreamState::NoState), OK(false)
 {
     unsigned flags = BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
@@ -127,6 +138,7 @@ CAudioStream::CAudioStream(const char *src) : state(no), OK(false)
         logger->Error("Loading audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
     }
     else OK = true;
+    BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_FREQ, &rate);
 }
 
 CAudioStream::~CAudioStream()
@@ -137,36 +149,36 @@ CAudioStream::~CAudioStream()
 void CAudioStream::Play()
 {
     BASS->ChannelPlay(streamInternal, true);
-    state = playing;
+    state = eStreamState::Playing;
 }
 
 void CAudioStream::Pause(bool change_state)
 {
     BASS->ChannelPause(streamInternal);
-    if (change_state) state = paused;
+    if (change_state) state = eStreamState::Paused;
 }
 
 void CAudioStream::Stop()
 {
     BASS->ChannelPause(streamInternal);
     BASS->ChannelSetPosition(streamInternal, 0, BASS_POS_BYTE);
-    state = paused;
+    state = eStreamState::Paused;
 }
 
 void CAudioStream::Resume()
 {
     BASS->ChannelPlay(streamInternal, false);
-    state = playing;
+    state = eStreamState::Playing;
 }
 
-uint64_t CAudioStream::GetLength()
+float CAudioStream::GetLength()
 {
-    return (uint64_t)BASS->ChannelBytes2Seconds(streamInternal, BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE));
+    return (float)BASS->ChannelBytes2Seconds(streamInternal, BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE));
 }
 
 int CAudioStream::GetState()
 {
-    if (state == stopped) return -1;
+    if (state == eStreamState::Stopped) return -1;
     switch (BASS->ChannelIsActive(streamInternal))
     {
         case BASS_ACTIVE_STOPPED:
@@ -181,42 +193,164 @@ int CAudioStream::GetState()
             return 2;
     };
 }
-
-float CAudioStream::GetVolume()
-{
-    float result;
-    if (!BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_VOL, &result)) return -1.0f;
-    return result;
-}
-
-void CAudioStream::SetVolume(float val)
-{
-    BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_VOL, val);
-}
  
 void CAudioStream::Loop(bool enable)
 {
     BASS->ChannelFlags(streamInternal, enable ? BASS_SAMPLE_LOOP : 0, BASS_SAMPLE_LOOP);
 }
-uint64_t CAudioStream::GetInternal() { return streamInternal; }
+
+uint32_t CAudioStream::GetInternal()
+{
+    return streamInternal;
+}
+
+void CAudioStream::UpdateSpeed()
+{
+    if (speed != speedTarget)
+    {
+        auto timeDelta = *m_snTimeInMillisecondsNonClipped - *m_snPreviousTimeInMillisecondsNonClipped;
+        speed += speedTransitionStep * (double)timeDelta; // animate the transition
+
+        // check progress
+        auto remaining = speedTarget - speed;
+        remaining *= (speedTransitionStep > 0.0) ? 1.0 : -1.0;
+        if (remaining < 0.0) // overshoot
+        {
+            speed = speedTarget; // done
+            if (speed <= 0.0f) Pause();
+        }
+    }
+
+    float freq = rate * (float)speed * CSoundSystem::masterSpeed;
+    freq = fmaxf(freq, 0.000001f); // 0 results in original speed
+    BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_FREQ, freq);
+}
+
+float CAudioStream::GetSpeed()
+{
+    return speed;
+}
+
+void CAudioStream::SetSpeed(float value, float transitionTime)
+{
+    if (transitionTime > 0.0f) Resume();
+
+    value = fmaxf(value, 0.0f);
+    speedTarget = value;
+
+    if (transitionTime <= 0.0)
+        speed = value; // instant
+    else
+        speedTransitionStep = (speedTarget - speed) / (1000.0 * transitionTime);
+}
+
+void CAudioStream::UpdateVolume()
+{
+    if (volume != volumeTarget)
+    {
+        auto timeDelta = *m_snTimeInMillisecondsNonClipped - *m_snPreviousTimeInMillisecondsNonClipped;
+        volume += volumeTransitionStep * (double)timeDelta; // animate the transition
+
+        // check progress
+        auto remaining = volumeTarget - volume;
+        remaining *= (volumeTransitionStep > 0.0) ? 1.0 : -1.0;
+        if (remaining < 0.0) // overshoot
+        {
+            volume = volumeTarget;
+            if (volume <= 0.0f) Pause();
+        }
+    }
+
+    float masterVolume = 1.0f;
+    //switch(type)
+    //{
+    //    case SoundEffect: masterVolume = CSoundSystem::masterVolumeSfx; break;
+    //    case Music: masterVolume = CSoundSystem::masterVolumeMusic; break;
+    //}
+
+    BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_VOL, (float)volume * masterVolume);
+}
+
+float CAudioStream::GetVolume()
+{
+    return volume;
+}
+
+void CAudioStream::SetVolume(float value, float transitionTime)
+{
+    if (transitionTime > 0.0f) Resume();
+
+    value = fmaxf(value, 0.0f);
+    volumeTarget = value;
+
+    if (transitionTime <= 0.0)
+        volume = value; // instant
+    else
+        volumeTransitionStep = (volumeTarget - volume) / (1000.0 * transitionTime);
+}
+
+void CAudioStream::SetProgress(float value)
+{
+    double val = std::clamp(value, 0.0f, 1.0f);
+    uint64_t total = BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE);
+    uint64_t bytePos = (uint64_t)(total * val);
+    BASS->ChannelSetPosition(streamInternal, bytePos, BASS_POS_BYTE);
+}
+
+float CAudioStream::GetProgress()
+{
+    auto total = BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE); // returns -1 on error
+    auto bytePos = BASS->ChannelGetPosition(streamInternal, BASS_POS_BYTE); // returns -1 on error
+
+    if (bytePos == -1) bytePos = 0; // error or not available yet
+
+    float progress = (float)bytePos / total;
+    progress = std::clamp(progress, 0.0f, 1.0f);
+    return progress;
+}
+
+void CAudioStream::SetType(int newtype)
+{
+    if(newtype == eStreamType::SoundEffect || newtype == eStreamType::Music)
+    {
+        type = (eStreamType)newtype;
+    }
+    else
+    {
+        type = (eStreamType)eStreamType::None;
+    }
+}
+
+eStreamType CAudioStream::GetType()
+{
+    return type;
+}
 
 void CAudioStream::Process()
 {
     switch (BASS->ChannelIsActive(streamInternal))
     {
         case BASS_ACTIVE_PAUSED:
-            state = paused;
+            state = eStreamState::Paused;
             break;
             
         case BASS_ACTIVE_PLAYING:
         case BASS_ACTIVE_STALLED:
-            state = playing;
+            state = eStreamState::Playing;
             break;
             
         case BASS_ACTIVE_STOPPED:
-            state = stopped;
+            state = eStreamState::Stopped;
             break;
     }
+
+    UpdateSpeed();
+    UpdateVolume();
+}
+
+bool CAudioStream::Is3DSource()
+{
+    return false;
 }
 
 void CAudioStream::Set3DPosition(const CVector&)
@@ -227,6 +361,11 @@ void CAudioStream::Set3DPosition(const CVector&)
 void CAudioStream::Set3DPosition(float, float, float)
 {
     logger->Error("Unimplemented CAudioStream::Set3DPosition(float,float,float)");
+}
+
+void CAudioStream::Set3DRadius(float radius)
+{
+    logger->Error("Unimplemented CAudioStream::Set3DRadius(float radius)");
 }
 
 void CAudioStream::Link(CPlaceable*)
@@ -251,11 +390,17 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
         BASS->ChannelSet3DAttributes(streamInternal, 0, -1.0, -1.0, -1, -1, -1.0);
         OK = true;
     }
+    BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_FREQ, &rate);
 }
 
 C3DAudioStream::~C3DAudioStream()
 {
     if (streamInternal) BASS->StreamFree(streamInternal);
+}
+
+bool C3DAudioStream::Is3DSource()
+{
+    return true;
 }
 
 void C3DAudioStream::Set3DPosition(const CVector& pos)
@@ -276,6 +421,14 @@ void C3DAudioStream::Set3DPosition(float x, float y, float z)
     BASS->ChannelSet3DPosition(streamInternal, &position, NULL, NULL);
 }
 
+void C3DAudioStream::Set3DRadius(float radius)
+{
+    BASS_SAMPLE sampleData;
+    BASS->SampleGetInfo(streamInternal, &sampleData);
+    sampleData.maxdist = radius;
+    BASS->SampleSetInfo(streamInternal, &sampleData);
+}
+
 void C3DAudioStream::Link(CPlaceable *placeable)
 {
     link = placeable;
@@ -287,20 +440,20 @@ void C3DAudioStream::Process()
     switch (BASS->ChannelIsActive(streamInternal))
     {
         case BASS_ACTIVE_PAUSED:
-            state = paused;
+            state = eStreamState::Paused;
             break;
             
         case BASS_ACTIVE_PLAYING:
         case BASS_ACTIVE_STALLED:
-            state = playing;
+            state = eStreamState::Playing;
             break;
             
         case BASS_ACTIVE_STOPPED:
-            state = stopped;
+            state = eStreamState::Stopped;
             break;
     }
     
-    if (state == playing)
+    if (state == eStreamState::Playing)
     {
         if (link)
         {
@@ -311,4 +464,7 @@ void C3DAudioStream::Process()
         }
         BASS->ChannelSet3DPosition(streamInternal, &position, NULL, NULL);
     }
+
+    UpdateSpeed();
+    UpdateVolume();
 }

@@ -14,6 +14,9 @@ CSoundSystem* soundsys = &soundsysLocal;
 CCamera *camera;
 bool* userPaused;
 bool* codePaused;
+uint32_t* m_snTimeInMillisecondsNonClipped;
+uint32_t* m_snPreviousTimeInMillisecondsNonClipped;
+float* ms_fTimeScale;
 
 int nGameLoaded = -1;
 
@@ -27,6 +30,8 @@ BEGIN_DEPLIST()
     ADD_DEPENDENCY(net.rusjj.basslib)
 END_DEPLIST()
 
+// Funcies
+
 CLEO_Fn(LOAD_AUDIO_STREAM)
 {
     char buf[256];
@@ -39,7 +44,6 @@ CLEO_Fn(LOAD_AUDIO_STREAM)
     }
     cleo->GetPointerToScriptVar(handle)->u = (uint32_t)soundsys->LoadStream(buf);
 }
-
 CLEO_Fn(SET_AUDIO_STREAM_STATE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
@@ -59,7 +63,6 @@ CLEO_Fn(SET_AUDIO_STREAM_STATE)
             logger->Error("[%04X] Unknown Audiostream's action: %d", opcode, action); break;
     }
 }
-
 CLEO_Fn(REMOVE_AUDIO_STREAM)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
@@ -70,37 +73,31 @@ CLEO_Fn(REMOVE_AUDIO_STREAM)
     }
     soundsys->UnloadStream(stream);
 }
-
 CLEO_Fn(GET_AUDIO_STREAM_LENGTH)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleo->GetPointerToScriptVar(handle)->i = stream ? stream->GetLength() : -1;
 }
-
 CLEO_Fn(GET_AUDIO_STREAM_STATE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleo->GetPointerToScriptVar(handle)->i = stream ? stream->GetState() : -1;
 }
-
 CLEO_Fn(GET_AUDIO_STREAM_VOLUME)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleo->GetPointerToScriptVar(handle)->f = stream ? stream->GetVolume() : 0.0f;
 }
-
 CLEO_Fn(SET_AUDIO_STREAM_VOLUME)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(stream) stream->SetVolume(cleo->ReadParam(handle)->f);
 }
-
 CLEO_Fn(SET_AUDIO_STREAM_LOOPED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(stream) stream->Loop(cleo->ReadParam(handle)->i != 0);
 }
-
 CLEO_Fn(LOAD_3D_AUDIO_STREAM)
 {
     char buf[256];
@@ -115,7 +112,6 @@ CLEO_Fn(LOAD_3D_AUDIO_STREAM)
     cleo->GetPointerToScriptVar(handle)->u = (uint32_t)stream;
     cleoaddon->UpdateCompareFlag(handle, stream != NULL);
 }
-
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
@@ -124,7 +120,6 @@ CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS)
         stream->Set3DPosition(cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f);
     }
 }
-
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
@@ -133,7 +128,6 @@ CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT)
         stream->Link(GetObjectFromRef(cleo->ReadParam(handle)->u));
     }
 }
-
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
@@ -142,7 +136,6 @@ CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR)
         stream->Link(GetPedFromRef(cleo->ReadParam(handle)->u));
     }
 }
-
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CAR)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
@@ -151,6 +144,86 @@ CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CAR)
         stream->Link(GetVehicleFromRef(cleo->ReadParam(handle)->u));
     }
 }
+
+// CLEO 5
+
+CLEO_Fn(IS_AUDIO_STREAM_PLAYING)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    int state = (stream) ? stream->GetState() : -1;
+    cleoaddon->UpdateCompareFlag(handle, state == 1);
+}
+CLEO_Fn(GET_AUDIO_STREAM_DURATION)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+
+    float length = 0.0f;
+    if (stream)
+    {
+        float length = stream->GetLength();
+        float speed = stream->GetSpeed();
+        if (speed <= 0.0f) length = FLT_MAX; // it would take forever to play paused
+        else length /= speed; // speed corrected
+    }
+    cleo->GetPointerToScriptVar(handle)->f = length;
+}
+CLEO_Fn(GET_AUDIO_STREAM_SPEED)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float speed = stream ? stream->GetSpeed() : 0.0f;
+    cleo->GetPointerToScriptVar(handle)->f = speed;
+}
+CLEO_Fn(SET_AUDIO_STREAM_SPEED)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float speed = cleo->ReadParam(handle)->f;
+    if(stream) stream->SetSpeed(speed);
+}
+CLEO_Fn(SET_AUDIO_STREAM_VOLUME_WITH_TRANSITION)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float volume = cleo->ReadParam(handle)->f;
+    int time = cleo->ReadParam(handle)->i;
+    if(stream) stream->SetVolume(volume, 0.001f * time);
+}
+CLEO_Fn(SET_AUDIO_STREAM_SPEED_WITH_TRANSITION)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float speed = cleo->ReadParam(handle)->f;
+    int time = cleo->ReadParam(handle)->i;
+    if(stream) stream->SetSpeed(speed, 0.001f * time);
+}
+CLEO_Fn(SET_AUDIO_STREAM_SOURCE_SIZE)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float radius = cleo->ReadParam(handle)->f;
+    if(stream) stream->Set3DRadius(radius);
+}
+CLEO_Fn(GET_AUDIO_STREAM_PROGRESS)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float progress = (stream) ? stream->GetProgress() : 0.0f;
+    cleo->GetPointerToScriptVar(handle)->f = progress;
+}
+CLEO_Fn(SET_AUDIO_STREAM_PROGRESS)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float progress = cleo->ReadParam(handle)->f;
+    if(stream) stream->SetProgress(progress);
+}
+CLEO_Fn(GET_AUDIO_STREAM_TYPE)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    cleo->GetPointerToScriptVar(handle)->i = stream->GetType();
+}
+CLEO_Fn(SET_AUDIO_STREAM_TYPE)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    int newtype = cleo->ReadParam(handle)->i;
+    stream->SetType(newtype);
+}
+
+// Hookies
 
 DECL_HOOKv(PauseOpenAL, void* self, int doPause)
 {
@@ -212,6 +285,9 @@ extern "C" void OnModLoad()
     SET_TO(camera, cleo->GetMainLibrarySymbol("TheCamera"));
     SET_TO(userPaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE"));
     SET_TO(codePaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_CodePauseE"));
+    SET_TO(m_snTimeInMillisecondsNonClipped, cleo->GetMainLibrarySymbol("_ZN6CTimer32m_snTimeInMillisecondsNonClippedE"));
+    SET_TO(m_snPreviousTimeInMillisecondsNonClipped, cleo->GetMainLibrarySymbol("_ZN6CTimer40m_snPreviousTimeInMillisecondsNonClippedE"));
+    SET_TO(ms_fTimeScale, cleo->GetMainLibrarySymbol("_ZN6CTimer13ms_fTimeScaleE"));
 
     if((uintptr_t)camera == gameAddr + 0x951FA8) nGameLoaded = 0; // SA 2.00
     else if((uintptr_t)camera == gameAddr + 0x595420) nGameLoaded = 1; // VC 1.09
@@ -257,6 +333,19 @@ extern "C" void OnModLoad()
     CLEO_RegisterOpcode(0x0AC3, SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT);
     CLEO_RegisterOpcode(0x0AC4, SET_PLAY_3D_AUDIO_STREAM_AT_CHAR);
     CLEO_RegisterOpcode(0x0AC5, SET_PLAY_3D_AUDIO_STREAM_AT_CAR);
+
+    // CLEO 5
+    CLEO_RegisterOpcode(0x2500, IS_AUDIO_STREAM_PLAYING);
+    CLEO_RegisterOpcode(0x2501, GET_AUDIO_STREAM_DURATION);
+    CLEO_RegisterOpcode(0x2502, GET_AUDIO_STREAM_SPEED);
+    CLEO_RegisterOpcode(0x2503, SET_AUDIO_STREAM_SPEED);
+    CLEO_RegisterOpcode(0x2504, SET_AUDIO_STREAM_VOLUME_WITH_TRANSITION);
+    CLEO_RegisterOpcode(0x2505, SET_AUDIO_STREAM_SPEED_WITH_TRANSITION);
+    CLEO_RegisterOpcode(0x2506, SET_AUDIO_STREAM_SOURCE_SIZE);
+    CLEO_RegisterOpcode(0x2507, GET_AUDIO_STREAM_PROGRESS);
+    CLEO_RegisterOpcode(0x2508, SET_AUDIO_STREAM_PROGRESS);
+    CLEO_RegisterOpcode(0x2509, GET_AUDIO_STREAM_TYPE);
+    CLEO_RegisterOpcode(0x250A, SET_AUDIO_STREAM_TYPE);
 
     soundsys->Init();
 
