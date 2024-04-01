@@ -23,6 +23,7 @@ int nGameLoaded = -1;
 CObject*    (*GetObjectFromRef)(int) = NULL;
 CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
+bool        (*Get_Just_Switched_Status)(CCamera*) = NULL;
 
 MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.3, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
@@ -96,7 +97,7 @@ CLEO_Fn(SET_AUDIO_STREAM_VOLUME)
 CLEO_Fn(SET_AUDIO_STREAM_LOOPED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream) stream->Loop(cleo->ReadParam(handle)->i != 0);
+    if(stream) stream->SetLooping(cleo->ReadParam(handle)->i != 0);
 }
 CLEO_Fn(LOAD_3D_AUDIO_STREAM)
 {
@@ -261,6 +262,41 @@ DECL_HOOKv(UpdateTimer) // VC
     soundsys->ResumeStreams();
 }
 
+void* AEAudioHardware;
+float (*GetEffectsMasterScalingFactor)(void*);
+float (*GetMusicMasterScalingFactor)(void*);
+char* SampleManager_VC;
+float GetEffectsVolume()
+{
+    if(nGameLoaded == 0) // GTA:SA
+    {
+        return GetEffectsMasterScalingFactor(AEAudioHardware);
+    }
+    else // GTA:VC ?
+    {
+        float val = (1.0 / 127.0) * *(SampleManager_VC + 0x8);
+        
+        if(val > 1) return 1.0f;
+        else if(val < 0) return 0.0f;
+        else return val;
+    }
+}
+float GetMusicVolume()
+{
+    if(nGameLoaded == 0) // GTA:SA
+    {
+        return GetMusicMasterScalingFactor(AEAudioHardware);
+    }
+    else // GTA:VC ?
+    {
+        float val = (1.0 / 127.0) * *(SampleManager_VC + 0x9);
+        
+        if(val > 1) return 1.0f;
+        else if(val < 0) return 0.0f;
+        else return val;
+    }
+}
+
 extern "C" void OnModLoad()
 {
     logger->SetTag("[CLEO] AudioStreams");
@@ -304,6 +340,10 @@ extern "C" void OnModLoad()
         HOOKPLT(GameShutdown, gameAddr + 0x672864);
         HOOKPLT(GameShutdownEngine, gameAddr + 0x6756F0);
         HOOKPLT(GameRestart, gameAddr + 0x6731A0);
+
+        SET_TO(AEAudioHardware, cleo->GetMainLibrarySymbol("AEAudioHardware"));
+        SET_TO(GetEffectsMasterScalingFactor, cleo->GetMainLibrarySymbol("_ZN16CAEAudioHardware29GetEffectsMasterScalingFactorEv"));
+        SET_TO(GetMusicMasterScalingFactor, cleo->GetMainLibrarySymbol("_ZN16CAEAudioHardware27GetMusicMasterScalingFactorEv"));
     }
     else // GTA:VC ?
     {
@@ -313,12 +353,15 @@ extern "C" void OnModLoad()
         HOOKBL(GameShutdown, gameAddr + 0x21E02E + 0x1); HOOKBL(GameShutdown, gameAddr + 0x21E9B4 + 0x1);
         HOOKBL(GameShutdownEngine, gameAddr + 0x14F078 + 0x1);
         HOOKBL(GameRestart, gameAddr + 0x14CCA6 + 0x1); HOOKBL(GameRestart, gameAddr + 0x21E8AA + 0x1);
+
+        SET_TO(SampleManager_VC, cleo->GetMainLibrarySymbol("SampleManager"));
     }
     
 
     SET_TO(GetObjectFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi"));
     SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
     SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
+    SET_TO(Get_Just_Switched_Status, cleo->GetMainLibrarySymbol("_ZN7CCamera24Get_Just_Switched_StatusEv"));
 
     CLEO_RegisterOpcode(0x0AAC, LOAD_AUDIO_STREAM);
     CLEO_RegisterOpcode(0x0AAD, SET_AUDIO_STREAM_STATE);

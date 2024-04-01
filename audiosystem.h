@@ -15,10 +15,10 @@ enum eStreamType
 };
 enum eStreamState
 {
-    NoState = 0,
+    Stopped = -1,
+    PlayingInactive,
     Playing,
     Paused,
-    Stopped,
 };
 
 extern CSoundSystem* soundsys;
@@ -82,7 +82,8 @@ public:
     void Resume();
     float GetLength();
     int GetState();
-    void Loop(bool enable);
+    void SetLooping(bool enable);
+    bool GetLooping();
 	uint32_t GetInternal();
     void UpdateSpeed();
     float GetSpeed();
@@ -113,6 +114,7 @@ protected:
     BASS_3DVECTOR   position;
 public:
     C3DAudioStream(const char *src);
+    void UpdatePosition();
     virtual ~C3DAudioStream();
     // overloaded actions
     virtual bool Is3DSource();
