@@ -3,7 +3,9 @@
 #include "audiosystem.h"
 
 #include "cleo.h"
+#include "cleoaddon.h"
 cleo_ifs_t* cleo = NULL;
+cleo_addon_ifs_t* cleoaddon = NULL;
 IBASS* BASS = NULL;
 
 static CSoundSystem soundsysLocal;
@@ -18,110 +20,27 @@ int nGameLoaded = -1;
 CObject*    (*GetObjectFromRef)(int) = NULL;
 CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
-void        (*UpdateCompareFlag)(void*, uint8_t) = NULL;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.2, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.3, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
-    ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.4)
+    ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.6)
     ADD_DEPENDENCY(net.rusjj.basslib)
 END_DEPLIST()
 
-#define __decl_op(__name, __int)    const char* NAME_##__name = #__name; const uint16_t OP_##__name = __int;
-#define __print_to_log(__str)       cleo->PrintToCleoLog(__str); logger->Info(__str)
-#define __reg_opcode                cleo->RegisterOpcode
-#define __reg_func                  cleo->RegisterOpcodeFunction
-#define __handler_params            void *handle, uint32_t *ip, uint16_t opcode, const char *name
-#define __op_name_match(x)          opcode == OP_##x || strcmp(name, NAME_##x) == 0
-#define __reg_op_func(x, h)         __reg_opcode(OP_##x, h); __reg_func(NAME_##x, h);
-
-__decl_op(LOAD_AUDIO_STREAM, 0x0AAC);                   // 0AAC=2,%2d% = load_audio_stream %1d%
-__decl_op(SET_AUDIO_STREAM_STATE, 0x0AAD);              // 0AAD=2,set_audio_stream %1d% state %2d%
-__decl_op(REMOVE_AUDIO_STREAM, 0x0AAE);                 // 0AAE=1,remove_audio_stream %1d%
-__decl_op(GET_AUDIO_STREAM_LENGTH, 0x0AAF);             // 0AAF=2,%2d% = get_audio_stream_length %1d%
-__decl_op(GET_AUDIO_STREAM_STATE, 0x0AB9);              // 0AB9=2,get_audio_stream %1d% state_to %2d%
-__decl_op(GET_AUDIO_STREAM_VOLUME, 0x0ABB);             // 0ABB=2,%2d% = audio_stream %1d% volume
-__decl_op(SET_AUDIO_STREAM_VOLUME, 0x0ABC);             // 0ABC=2,set_audio_stream %1d% volume %2d%
-__decl_op(SET_AUDIO_STREAM_LOOPED, 0x0AC0);             // 0AC0=2,set_audio_stream %1d% looped %2d%
-__decl_op(LOAD_3D_AUDIO_STREAM, 0x0AC1);                // 0AC1=2,%2d% = load_audio_stream_with_3d_support %1d% ; IF and SET
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS, 0x0AC2);  // 0AC2=4,link_3d_audio_stream %1d% at_coords %2d% %3d% %4d%
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT, 0x0AC3);  // 0AC3=2,link_3d_audio_stream %1d% to_object %2d%
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR, 0x0AC4);    // 0AC4=2,link_3d_audio_stream %1d% to_actor %2d%
-__decl_op(SET_PLAY_3D_AUDIO_STREAM_AT_CAR, 0x0AC5);     // 0AC5=2,link_3d_audio_stream %1d% to_car %2d%
-
-inline int GetPCOffset()
+CLEO_Fn(LOAD_AUDIO_STREAM)
 {
-    switch(cleo->GetGameIdentifier())
-    {
-        case GTASA: return 20;
-        case GTALCS: return 24;
-
-        default: return 16;
-    }
-}
-inline uint8_t*& GetPC(void* handle)
-{
-    return *(uint8_t**)((uintptr_t)handle + GetPCOffset());
-}
-inline uint8_t* GetPC_CLEO(void* handle) // weird-ass trash from CLEO for VC *facepalm*
-{
-    return (uint8_t*)cleo->GetRealCodePointer(*(uint32_t*)((uintptr_t)handle + GetPCOffset()));
-}
-inline char* CLEO_ReadStringEx(void* handle, char* buf, size_t size)
-{
-    uint8_t byte = *(cleo->GetGameIdentifier() == GTASA ? GetPC(handle) : GetPC_CLEO(handle));
-
-    static char newBuf[128];
-    if(!buf || size < 1) buf = (char*)newBuf;
-
-    switch(byte)
-    {
-        default:
-            return cleo->ReadStringLong(handle, buf, size) ? buf : NULL;
-            
-        case 0x09:
-            GetPC(handle) += 1;
-            return cleo->ReadString8byte(handle, buf, size) ? buf : NULL;
-
-        case 0x0A:
-        case 0x0B:
-        case 0x0C:
-        case 0x0D:
-        {
-            size = (size > 8) ? 8 : size;
-            memcpy(buf, (char*)cleo->GetPointerToScriptVar(handle), size);
-            buf[size-1] = 0;
-            return buf;
-        }
-
-        case 0x10:
-        case 0x11:
-        case 0x12:
-        case 0x13:
-        {
-            size = (size > 16) ? 16 : size;
-            memcpy(buf, (char*)cleo->GetPointerToScriptVar(handle), size);
-            buf[size-1] = 0;
-            return buf;
-        }
-    }
-    return buf;
-}
-
-void LOAD_AUDIO_STREAM(__handler_params)
-{
-    char param1[256];
-    CLEO_ReadStringEx(handle, param1, sizeof(param1));
-    param1[sizeof(param1)-1] = 0; // I can't trust game scripting engine...
+    char buf[256];
+    cleoaddon->ReadString(handle, buf, sizeof(buf));
     int i = 0;
-    while(param1[i] != 0) // A little hack
+    while(buf[i] != 0) // A little hack
     {
-        if(param1[i] == '\\') param1[i] = '/';
+        if(buf[i] == '\\') buf[i] = '/';
         ++i;
     }
-    cleo->GetPointerToScriptVar(handle)->u = (uint32_t)soundsys->LoadStream(param1);
+    cleo->GetPointerToScriptVar(handle)->u = (uint32_t)soundsys->LoadStream(buf);
 }
 
-void SET_AUDIO_STREAM_STATE(__handler_params)
+CLEO_Fn(SET_AUDIO_STREAM_STATE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(!stream)
@@ -141,7 +60,7 @@ void SET_AUDIO_STREAM_STATE(__handler_params)
     }
 }
 
-void REMOVE_AUDIO_STREAM(__handler_params)
+CLEO_Fn(REMOVE_AUDIO_STREAM)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(!stream)
@@ -152,53 +71,52 @@ void REMOVE_AUDIO_STREAM(__handler_params)
     soundsys->UnloadStream(stream);
 }
 
-void GET_AUDIO_STREAM_LENGTH(__handler_params)
+CLEO_Fn(GET_AUDIO_STREAM_LENGTH)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleo->GetPointerToScriptVar(handle)->i = stream ? stream->GetLength() : -1;
 }
 
-void GET_AUDIO_STREAM_STATE(__handler_params)
+CLEO_Fn(GET_AUDIO_STREAM_STATE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleo->GetPointerToScriptVar(handle)->i = stream ? stream->GetState() : -1;
 }
 
-void GET_AUDIO_STREAM_VOLUME(__handler_params)
+CLEO_Fn(GET_AUDIO_STREAM_VOLUME)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleo->GetPointerToScriptVar(handle)->f = stream ? stream->GetVolume() : 0.0f;
 }
 
-void SET_AUDIO_STREAM_VOLUME(__handler_params)
+CLEO_Fn(SET_AUDIO_STREAM_VOLUME)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(stream) stream->SetVolume(cleo->ReadParam(handle)->f);
 }
 
-void SET_AUDIO_STREAM_LOOPED(__handler_params)
+CLEO_Fn(SET_AUDIO_STREAM_LOOPED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(stream) stream->Loop(cleo->ReadParam(handle)->i != 0);
 }
 
-void LOAD_3D_AUDIO_STREAM(__handler_params)
+CLEO_Fn(LOAD_3D_AUDIO_STREAM)
 {
-    char param1[256];
-    CLEO_ReadStringEx(handle, param1, sizeof(param1));
-    param1[sizeof(param1)-1] = 0; // I can't trust game scripting engine...
+    char buf[256];
+    cleoaddon->ReadString(handle, buf, sizeof(buf));
     int i = 0;
-    while(param1[i] != 0) // A little hack
+    while(buf[i] != 0) // A little hack
     {
-        if(param1[i] == '\\') param1[i] = '/';
+        if(buf[i] == '\\') buf[i] = '/';
         ++i;
     }
-    auto stream = soundsys->LoadStream(param1, true);
+    auto stream = soundsys->LoadStream(buf, true);
     cleo->GetPointerToScriptVar(handle)->u = (uint32_t)stream;
-    UpdateCompareFlag(handle, stream != NULL);
+    cleoaddon->UpdateCompareFlag(handle, stream != NULL);
 }
 
-void SET_PLAY_3D_AUDIO_STREAM_AT_COORDS(__handler_params)
+CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
     if(stream)
@@ -207,7 +125,7 @@ void SET_PLAY_3D_AUDIO_STREAM_AT_COORDS(__handler_params)
     }
 }
 
-void SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT(__handler_params)
+CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
     if(stream)
@@ -216,7 +134,7 @@ void SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT(__handler_params)
     }
 }
 
-void SET_PLAY_3D_AUDIO_STREAM_AT_CHAR(__handler_params)
+CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
     if(stream)
@@ -225,7 +143,7 @@ void SET_PLAY_3D_AUDIO_STREAM_AT_CHAR(__handler_params)
     }
 }
 
-void SET_PLAY_3D_AUDIO_STREAM_AT_CAR(__handler_params)
+CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CAR)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
     if(stream)
@@ -278,13 +196,18 @@ extern "C" void OnModLoad()
         logger->Error("Cannot load: CLEO interface is not found!");
         return;
     }
+    if(!(cleoaddon = (cleo_addon_ifs_t*)GetInterface("CLEOAddon")))
+    {
+        logger->Error("Cannot load a mod: CLEO's Addon interface is unknown!");
+        return;
+    }
     if(!(BASS = (IBASS*)GetInterface("BASS")))
     {
         logger->Error("Cannot load: BASS interface is not found!");
         return;
     }
 
-    __print_to_log("Starting AudioStreams...");
+    logger->Info("Starting AudioStreams...");
     uintptr_t gameAddr = (uintptr_t)cleo->GetMainLibraryLoadAddress();
     SET_TO(camera, cleo->GetMainLibrarySymbol("TheCamera"));
     SET_TO(userPaused, cleo->GetMainLibrarySymbol("_ZN6CTimer11m_UserPauseE"));
@@ -294,7 +217,7 @@ extern "C" void OnModLoad()
     else if((uintptr_t)camera == gameAddr + 0x595420) nGameLoaded = 1; // VC 1.09
     else
     {
-        __print_to_log("The loaded game is not GTA:SA v2.00 or GTA:VC v1.09. Aborting...");
+        logger->Info("The loaded game is not GTA:SA v2.00 or GTA:VC v1.09. Aborting...");
         return;
     }
 
@@ -320,23 +243,22 @@ extern "C" void OnModLoad()
     SET_TO(GetObjectFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi"));
     SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
     SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
-    SET_TO(UpdateCompareFlag, cleo->GetMainLibrarySymbol("_ZN14CRunningScript17UpdateCompareFlagEh"));
 
-    __reg_op_func(LOAD_AUDIO_STREAM, LOAD_AUDIO_STREAM);
-    __reg_op_func(SET_AUDIO_STREAM_STATE, SET_AUDIO_STREAM_STATE);
-    __reg_op_func(REMOVE_AUDIO_STREAM, REMOVE_AUDIO_STREAM);
-    __reg_op_func(GET_AUDIO_STREAM_LENGTH, GET_AUDIO_STREAM_LENGTH);
-    __reg_op_func(GET_AUDIO_STREAM_STATE, GET_AUDIO_STREAM_STATE);
-    __reg_op_func(GET_AUDIO_STREAM_VOLUME, GET_AUDIO_STREAM_VOLUME);
-    __reg_op_func(SET_AUDIO_STREAM_VOLUME, SET_AUDIO_STREAM_VOLUME);
-    __reg_op_func(SET_AUDIO_STREAM_LOOPED, SET_AUDIO_STREAM_LOOPED);
-    __reg_op_func(LOAD_3D_AUDIO_STREAM, LOAD_3D_AUDIO_STREAM);
-    __reg_op_func(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS, SET_PLAY_3D_AUDIO_STREAM_AT_COORDS);
-    __reg_op_func(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT, SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT);
-    __reg_op_func(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR, SET_PLAY_3D_AUDIO_STREAM_AT_CHAR);
-    __reg_op_func(SET_PLAY_3D_AUDIO_STREAM_AT_CAR, SET_PLAY_3D_AUDIO_STREAM_AT_CAR);
+    CLEO_RegisterOpcode(0x0AAC, LOAD_AUDIO_STREAM);
+    CLEO_RegisterOpcode(0x0AAD, SET_AUDIO_STREAM_STATE);
+    CLEO_RegisterOpcode(0x0AAE, REMOVE_AUDIO_STREAM);
+    CLEO_RegisterOpcode(0x0AAF, GET_AUDIO_STREAM_LENGTH);
+    CLEO_RegisterOpcode(0x0AB9, GET_AUDIO_STREAM_STATE);
+    CLEO_RegisterOpcode(0x0ABB, GET_AUDIO_STREAM_VOLUME);
+    CLEO_RegisterOpcode(0x0ABC, SET_AUDIO_STREAM_VOLUME);
+    CLEO_RegisterOpcode(0x0AC0, SET_AUDIO_STREAM_LOOPED);
+    CLEO_RegisterOpcode(0x0AC1, LOAD_3D_AUDIO_STREAM);
+    CLEO_RegisterOpcode(0x0AC2, SET_PLAY_3D_AUDIO_STREAM_AT_COORDS);
+    CLEO_RegisterOpcode(0x0AC3, SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT);
+    CLEO_RegisterOpcode(0x0AC4, SET_PLAY_3D_AUDIO_STREAM_AT_CHAR);
+    CLEO_RegisterOpcode(0x0AC5, SET_PLAY_3D_AUDIO_STREAM_AT_CAR);
 
     soundsys->Init();
 
-    __print_to_log("AudioStreams has been loaded!");
+    logger->Info("AudioStreams has been loaded!");
 }

@@ -409,3 +409,4 @@ RW_STRUCTS.h
 .vscode/settings.json
 cleo.h
 ibass.h
+cleoaddon.h
