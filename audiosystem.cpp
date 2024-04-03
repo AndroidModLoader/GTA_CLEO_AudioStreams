@@ -173,8 +173,9 @@ CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(fa
         !(streamInternal = BASS->StreamCreateFile(false, (std::string(cleo->GetCleoStorageDir()) + "/" + src).c_str(), 0, 0, flags)))
     {
         logger->Error("Loading audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
+        return;
     }
-    else OK = true;
+    OK = true;
     BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_FREQ, &rate);
 }
 
@@ -365,7 +366,8 @@ void CAudioStream::Process()
     if (state == eStreamState::PlayingInactive)
     {
         BASS->ChannelPlay(streamInternal, false);
-        state = Playing;
+        state = eStreamState::Playing;
+        logger->Info("Started an audio");
     }
 
     if (!GetLooping() && GetProgress() >= 1.0f) // end reached
@@ -415,12 +417,9 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
         !(streamInternal = BASS->StreamCreateFile(false, (std::string(cleo->GetCleoStorageDir()) + "/" + src).c_str(), 0, 0, flags)))
     {
         logger->Error("Loading 3D audiostream failed. Error code: %d\nSource: \"%s\"", BASS->ErrorGetCode(), src);
+        return;
     }
-    else
-    {
-        BASS->ChannelSet3DAttributes(streamInternal, 0, -1.0, -1.0, -1, -1, -1.0);
-        OK = true;
-    }
+    OK = true;
     BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_FREQ, &rate);
     BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, 3.0f, 1E+12f, -1, -1, -1.0f);
 }
