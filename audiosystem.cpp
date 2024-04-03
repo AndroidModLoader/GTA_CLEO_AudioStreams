@@ -326,9 +326,14 @@ void CAudioStream::SetVolume(float value, float transitionTime)
 
 void CAudioStream::SetProgress(float value)
 {
-    double val = std::clamp(value, 0.0f, 1.0f);
+    if(value == 0)
+    {
+        BASS->ChannelSetPosition(streamInternal, bytePos, BASS_POS_BYTE);
+        return;
+    }
+    double val = (value > 1.0) ? 1.0 : ((value < 0.0) ? 0.0 : (double)value);
     uint64_t total = BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE);
-    uint64_t bytePos = (uint64_t)(total * val);
+    uint64_t bytePos = (uint64_t)(val * total);
     BASS->ChannelSetPosition(streamInternal, bytePos, BASS_POS_BYTE);
 }
 
