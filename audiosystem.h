@@ -101,7 +101,10 @@ public:
     virtual bool Is3DSource();
     virtual void Set3DPosition(const CVector& pos);
     virtual void Set3DPosition(float x, float y, float z);
-    virtual void Set3DRadius(float radius);
+    virtual void SetMin3DRadius(float radius);
+    virtual void SetMax3DRadius(float radius);
+    virtual float GetMin3DRadius();
+    virtual float GetMax3DRadius();
     virtual void Link(CPlaceable* placeable = NULL);
     virtual void Process();
 };
@@ -112,15 +115,21 @@ class C3DAudioStream : public CAudioStream
 protected:
     CPlaceable*     link;
     BASS_3DVECTOR   position;
+    float           minRadius = 3.0f;
+    float           maxRadius = 1E+12f;
 public:
     C3DAudioStream(const char *src);
     void UpdatePosition();
+    void UpdateRadius();
     virtual ~C3DAudioStream();
     // overloaded actions
     virtual bool Is3DSource();
     virtual void Set3DPosition(const CVector& pos);
     virtual void Set3DPosition(float x, float y, float z);
-    virtual void Set3DRadius(float radius);
+    virtual void SetMin3DRadius(float radius);
+    virtual void SetMax3DRadius(float radius);
+    virtual float GetMin3DRadius();
+    virtual float GetMax3DRadius();
     virtual void Link(CPlaceable* placeable = NULL);
     virtual void Process();
 };
