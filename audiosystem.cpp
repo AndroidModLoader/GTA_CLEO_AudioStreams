@@ -400,9 +400,26 @@ void CAudioStream::Set3DPosition(float, float, float)
     logger->Error("Unimplemented CAudioStream::Set3DPosition(float,float,float)");
 }
 
-void CAudioStream::Set3DRadius(float radius)
+void CAudioStream::SetMin3DRadius(float radius)
 {
-    logger->Error("Unimplemented CAudioStream::Set3DRadius(float radius)");
+    logger->Error("Unimplemented CAudioStream::SetMin3DRadius(float radius)");
+}
+
+void CAudioStream::SetMax3DRadius(float radius)
+{
+    logger->Error("Unimplemented CAudioStream::SetMax3DRadius(float radius)");
+}
+
+float CAudioStream::GetMin3DRadius()
+{
+    logger->Error("Unimplemented CAudioStream::GetMin3DRadius()");
+    return 0.0f;
+}
+
+float CAudioStream::GetMax3DRadius()
+{
+    logger->Error("Unimplemented CAudioStream::GetMax3DRadius()");
+    return 0.0f;
 }
 
 void CAudioStream::Link(CPlaceable*)
@@ -425,7 +442,8 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
     }
     OK = true;
     BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_FREQ, &rate);
-    BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, 3.0f, 1E+12f, -1, -1, -1.0f);
+    UpdateRadius();
+    //BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, 3.0f, 1E+12f, -1, -1, -1.0f);
 }
 
 C3DAudioStream::~C3DAudioStream()
@@ -458,9 +476,26 @@ void C3DAudioStream::Set3DPosition(float x, float y, float z)
     BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
 }
 
-void C3DAudioStream::Set3DRadius(float radius)
+void C3DAudioStream::SetMin3DRadius(float radius)
 {
-    BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, radius, 1E+12f, -1, -1, -1.0f);
+    minRadius = radius;
+    UpdateRadius();
+}
+
+void C3DAudioStream::SetMax3DRadius(float radius)
+{
+    maxRadius = radius;
+    UpdateRadius();
+}
+
+float C3DAudioStream::GetMin3DRadius()
+{
+    return minRadius;
+}
+
+float C3DAudioStream::GetMax3DRadius()
+{
+    return maxRadius;
 }
 
 void C3DAudioStream::Link(CPlaceable *placeable)
@@ -497,4 +532,9 @@ void C3DAudioStream::UpdatePosition()
 
         BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
     }
+}
+
+void C3DAudioStream::UpdateRadius()
+{
+    BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, minRadius, maxRadius, -1, -1, -1.0f);
 }
