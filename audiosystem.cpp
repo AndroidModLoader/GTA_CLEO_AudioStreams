@@ -328,7 +328,7 @@ void CAudioStream::SetProgress(float value)
 {
     if(value == 0)
     {
-        BASS->ChannelSetPosition(streamInternal, bytePos, BASS_POS_BYTE);
+        BASS->ChannelSetPosition(streamInternal, 0, BASS_POS_BYTE);
         return;
     }
     double val = (value > 1.0) ? 1.0 : ((value < 0.0) ? 0.0 : (double)value);
