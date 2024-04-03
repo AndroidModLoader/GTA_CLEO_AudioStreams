@@ -367,7 +367,6 @@ void CAudioStream::Process()
     {
         BASS->ChannelPlay(streamInternal, false);
         state = eStreamState::Playing;
-        logger->Info("Started an audio");
     }
 
     if (!GetLooping() && GetProgress() >= 1.0f) // end reached
@@ -483,13 +482,13 @@ void C3DAudioStream::UpdatePosition()
 
         // calculate velocity
         BASS_3DVECTOR avel = position;
-        vel.x -= prevPos.x;
-        vel.y -= prevPos.y;
-        vel.z -= prevPos.z;
+        avel.x -= prevPos.x;
+        avel.y -= prevPos.y;
+        avel.z -= prevPos.z;
         auto timeDelta = 0.001f * (*m_snTimeInMillisecondsNonClipped - *m_snPreviousTimeInMillisecondsNonClipped);
-        vel.x *= timeDelta;
-        vel.y *= timeDelta;
-        vel.z *= timeDelta;
+        avel.x *= timeDelta;
+        avel.y *= timeDelta;
+        avel.z *= timeDelta;
 
         BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
     }
