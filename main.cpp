@@ -198,7 +198,23 @@ CLEO_Fn(SET_AUDIO_STREAM_SOURCE_SIZE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     float radius = cleo->ReadParam(handle)->f;
-    if(stream) stream->Set3DRadius(radius);
+    if(stream)
+    {
+        if(radius == 0)
+        {
+            stream->SetMin3DRadius(3.0f);
+            stream->SetMax3DRadius(1E+12f);
+        }
+        else if(radius > 0)
+        {
+            // ugly original logic...
+            stream->SetMin3DRadius(radius);
+        }
+        else if(radius < 0)
+        {
+            stream->SetMax3DRadius(-radius);
+        }
+    }
 }
 CLEO_Fn(GET_AUDIO_STREAM_PROGRESS)
 {
