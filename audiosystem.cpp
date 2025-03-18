@@ -467,11 +467,6 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
     //BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, 3.0f, 1E+12f, -1, -1, -1.0f);
 }
 
-C3DAudioStream::~C3DAudioStream()
-{
-    if (streamInternal) BASS->StreamFree(streamInternal);
-}
-
 bool C3DAudioStream::Is3DSource()
 {
     return true;

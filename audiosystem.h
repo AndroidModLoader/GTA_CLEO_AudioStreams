@@ -126,7 +126,6 @@ public:
     C3DAudioStream(const char *src);
     void UpdatePosition();
     void UpdateRadius();
-    virtual ~C3DAudioStream();
     // overloaded actions
     virtual bool Is3DSource();
     virtual void Set3DPosition(const CVector& pos);
