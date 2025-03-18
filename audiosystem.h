@@ -49,7 +49,7 @@ public:
         UnloadAllStreams();
         initialized = false;
     }
-    CAudioStream * LoadStream(const char *filename, bool in3d = false);
+    CAudioStream * LoadStream(const char *filename, bool in3d);
     void PauseStreams();
     void ResumeStreams();
     void UnloadStream(CAudioStream *stream);
@@ -114,7 +114,9 @@ public:
     virtual float GetMin3DRadius();
     virtual float GetMax3DRadius();
     virtual void Link(CPlaceable* placeable = NULL);
+    virtual bool IsLinked();
     virtual void Process();
+    virtual CVector GetPosition();
 };
 class C3DAudioStream : public CAudioStream
 {
@@ -138,7 +140,9 @@ public:
     virtual float GetMin3DRadius();
     virtual float GetMax3DRadius();
     virtual void Link(CPlaceable* placeable = NULL);
+    virtual bool IsLinked();
     virtual void Process();
+    virtual CVector GetPosition();
 };
 
 extern IBASS* BASS;

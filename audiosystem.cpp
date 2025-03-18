@@ -170,6 +170,7 @@ void CSoundSystem::Update()
 
 CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false),
                                type(eStreamType::SoundEffect), takeGameSpeedIntoAccount(false) {}
+
 CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(false),
                                               type(eStreamType::SoundEffect), takeGameSpeedIntoAccount(false)
 {
@@ -459,6 +460,18 @@ void CAudioStream::Link(CPlaceable*)
     logger->Error("Unimplemented CAudioStream::Link(CPlaceable*)");
 }
 
+bool CAudioStream::IsLinked()
+{
+    logger->Error("Unimplemented CAudioStream::IsLinked()");
+    return false;
+}
+
+CVector CAudioStream::GetPosition()
+{
+    logger->Error("Unimplemented CAudioStream::GetPosition()");
+    return CVector {0, 0, 0};
+}
+
 ////////////////// 3D Audiostream //////////////////
 
 C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
@@ -476,7 +489,7 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
     OK = true;
     BASS->ChannelGetAttribute(streamInternal, BASS_ATTRIB_FREQ, &rate);
     UpdateRadius();
-    //BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, 3.0f, 1E+12f, -1, -1, -1.0f);
+    //BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, 3.0f, 1E+12f, -1, -1, -1.0f); // ^ this one is in a function above it
 }
 
 bool C3DAudioStream::Is3DSource()
@@ -531,6 +544,11 @@ void C3DAudioStream::Link(CPlaceable *placeable)
     link = placeable;
 }
 
+bool C3DAudioStream::IsLinked()
+{
+    return (link != NULL);
+}
+
 void C3DAudioStream::Process()
 {
     CAudioStream::Process();
@@ -565,4 +583,9 @@ void C3DAudioStream::UpdatePosition()
 void C3DAudioStream::UpdateRadius()
 {
     BASS->ChannelSet3DAttributes(streamInternal, BASS_3DMODE_NORMAL, minRadius, maxRadius, -1, -1, -1.0f);
+}
+
+CVector C3DAudioStream::GetPosition()
+{
+    return CVector {position.z, position.x, position.y};
 }

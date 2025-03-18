@@ -43,7 +43,10 @@ CLEO_Fn(LOAD_AUDIO_STREAM)
         if(buf[i] == '\\') buf[i] = '/';
         ++i;
     }
-    cleo->GetPointerToScriptVar(handle)->u = (uint32_t)soundsys->LoadStream(buf);
+
+    auto stream = soundsys->LoadStream(buf, false);
+    cleo->GetPointerToScriptVar(handle)->u = (uint32_t)stream;
+    cleoaddon->UpdateCompareFlag(handle, stream != NULL);
 }
 CLEO_Fn(SET_AUDIO_STREAM_STATE)
 {
@@ -171,8 +174,7 @@ CLEO_Fn(GET_AUDIO_STREAM_DURATION)
 CLEO_Fn(GET_AUDIO_STREAM_SPEED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    float speed = stream ? stream->GetSpeed() : 0.0f;
-    cleo->GetPointerToScriptVar(handle)->f = speed;
+    cleo->GetPointerToScriptVar(handle)->f = stream ? stream->GetSpeed() : 0.0f;
 }
 CLEO_Fn(SET_AUDIO_STREAM_SPEED)
 {
@@ -220,8 +222,7 @@ CLEO_Fn(SET_AUDIO_STREAM_SOURCE_SIZE)
 CLEO_Fn(GET_AUDIO_STREAM_PROGRESS)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    float progress = (stream) ? stream->GetProgress() : 0.0f;
-    cleo->GetPointerToScriptVar(handle)->f = progress;
+    cleo->GetPointerToScriptVar(handle)->f = stream ? stream->GetProgress() : 0.0f;
 }
 CLEO_Fn(SET_AUDIO_STREAM_PROGRESS)
 {
@@ -232,23 +233,51 @@ CLEO_Fn(SET_AUDIO_STREAM_PROGRESS)
 CLEO_Fn(GET_AUDIO_STREAM_TYPE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    cleo->GetPointerToScriptVar(handle)->i = stream->GetType();
+    cleo->GetPointerToScriptVar(handle)->i = stream ? stream->GetType() : eStreamType::None;
 }
 CLEO_Fn(SET_AUDIO_STREAM_TYPE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     int newtype = cleo->ReadParam(handle)->i;
-    stream->SetType(newtype);
+    if(stream) stream->SetType(newtype);
 }
 CLEO_Fn(GET_STREAM_TAKING_GAME_SPEED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    cleo->GetPointerToScriptVar(handle)->i = stream->IsTakingGameSpeedIntoAccount();
+    cleoaddon->UpdateCompareFlag(handle, stream && stream->IsTakingGameSpeedIntoAccount());
 }
 CLEO_Fn(SET_STREAM_TAKING_GAME_SPEED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    stream->SetTakeGameSpeedIntoAccount(cleo->ReadParam(handle)->i);
+    bool takeIt = cleo->ReadParam(handle)->i;
+    if(stream) stream->SetTakeGameSpeedIntoAccount(takeIt);
+}
+CLEO_Fn(IS_AUDIO_STREAM_IN_3D)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    cleoaddon->UpdateCompareFlag(handle, stream && stream->Is3DSource());
+}
+CLEO_Fn(GET_AUDIO_STREAM_POSITION)
+{
+    C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
+    if(stream && stream->Is3DSource())
+    {
+        CVector pos = stream->GetPosition();
+        cleo->GetPointerToScriptVar(handle)->f = pos.x;
+        cleo->GetPointerToScriptVar(handle)->f = pos.y;
+        cleo->GetPointerToScriptVar(handle)->f = pos.z;
+    }
+    else
+    {
+        cleo->GetPointerToScriptVar(handle)->f = 0.0f;
+        cleo->GetPointerToScriptVar(handle)->f = 0.0f;
+        cleo->GetPointerToScriptVar(handle)->f = 0.0f;
+    }
+}
+CLEO_Fn(IS_AUDIO_STREAM_LINKED)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    cleoaddon->UpdateCompareFlag(handle, stream && stream->Is3DSource() && stream->IsLinked());
 }
 
 // Hookies
@@ -417,8 +446,11 @@ extern "C" void OnModLoad()
     CLEO_RegisterOpcode(0x250A, SET_AUDIO_STREAM_TYPE);
 
     // Author's stuff (CLEO5 maintainer is a dumbo, im sorry...)
-    CLEO_RegisterOpcode(0x2540, GET_STREAM_TAKING_GAME_SPEED); // 2540=2,%2d% = does_stream %1d% affected_by_game_speed
+    CLEO_RegisterOpcode(0x2540, GET_STREAM_TAKING_GAME_SPEED); // 2540=1,does_game_speed_affect_stream %1d%
     CLEO_RegisterOpcode(0x2541, SET_STREAM_TAKING_GAME_SPEED); // 2541=2,set_stream %1d% being_affected_by_game_speed %2d%
+    CLEO_RegisterOpcode(0x2542, IS_AUDIO_STREAM_IN_3D);        // 2542=1,is_audio_stream_3d %1d%
+    CLEO_RegisterOpcode(0x2543, GET_AUDIO_STREAM_POSITION);    // 2543=4,get_audio_stream %1d% position %2d% %3d% %4d%
+    CLEO_RegisterOpcode(0x2544, IS_AUDIO_STREAM_LINKED);       // 2544=1,is_audio_stream_linked %1d%
 
     soundsys->Init();
 
