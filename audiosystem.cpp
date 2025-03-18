@@ -168,8 +168,10 @@ void CSoundSystem::Update()
     }
 }
 
-CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false), type(eStreamType::SoundEffect) {}
-CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(false), type(eStreamType::SoundEffect)
+CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false),
+                               type(eStreamType::SoundEffect), takeGameSpeedIntoAccount(false) {}
+CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(false),
+                                              type(eStreamType::SoundEffect), takeGameSpeedIntoAccount(false)
 {
     unsigned flags = BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
@@ -261,8 +263,8 @@ void CAudioStream::UpdateSpeed()
         }
     }
 
-    float masterSpeed;
-    switch(type)
+    float masterSpeed = takeGameSpeedIntoAccount ? CSoundSystem::masterSpeed : 1.0f;
+    /*switch(type)
     {
         case eStreamType::SoundEffect:
         case eStreamType::Music: // and muted
@@ -272,7 +274,7 @@ void CAudioStream::UpdateSpeed()
         default:
             masterSpeed = 1.0f;
             break;
-    }
+    }*/
 
     float freq = rate * (float)speed * masterSpeed;
     freq = fmaxf(freq, 0.000001f); // 0 results in original speed
@@ -384,6 +386,16 @@ void CAudioStream::SetType(int newtype)
 eStreamType CAudioStream::GetType()
 {
     return type;
+}
+
+void CAudioStream::SetTakeGameSpeedIntoAccount(bool enable)
+{
+    takeGameSpeedIntoAccount = enable;
+}
+
+bool CAudioStream::IsTakingGameSpeedIntoAccount()
+{
+    return takeGameSpeedIntoAccount;
 }
 
 void CAudioStream::Process()

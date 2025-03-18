@@ -240,6 +240,16 @@ CLEO_Fn(SET_AUDIO_STREAM_TYPE)
     int newtype = cleo->ReadParam(handle)->i;
     stream->SetType(newtype);
 }
+CLEO_Fn(GET_STREAM_TAKING_GAME_SPEED)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    cleo->GetPointerToScriptVar(handle)->i = stream->IsTakingGameSpeedIntoAccount();
+}
+CLEO_Fn(SET_STREAM_TAKING_GAME_SPEED)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    stream->SetTakeGameSpeedIntoAccount(cleo->ReadParam(handle)->i);
+}
 
 // Hookies
 
@@ -405,6 +415,10 @@ extern "C" void OnModLoad()
     CLEO_RegisterOpcode(0x2508, SET_AUDIO_STREAM_PROGRESS);
     CLEO_RegisterOpcode(0x2509, GET_AUDIO_STREAM_TYPE);
     CLEO_RegisterOpcode(0x250A, SET_AUDIO_STREAM_TYPE);
+
+    // Author's stuff (CLEO5 maintainer is a dumbo, im sorry...)
+    CLEO_RegisterOpcode(0x2540, GET_STREAM_TAKING_GAME_SPEED); // 2540=2,%2d% = does_stream %1d% affected_by_game_speed
+    CLEO_RegisterOpcode(0x2541, SET_STREAM_TAKING_GAME_SPEED); // 2541=2,set_stream %1d% being_affected_by_game_speed %2d%
 
     soundsys->Init();
 

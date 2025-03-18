@@ -64,8 +64,9 @@ class CAudioStream
 protected:
     uint32_t streamInternal;
     eStreamState state;
-    bool OK;
     eStreamType type;
+    bool OK;
+    bool takeGameSpeedIntoAccount;
     float rate = 44100.0f; // file's sampling rate
     float speed = 1.0f;
     float volume = 1.0f;
@@ -100,6 +101,8 @@ public:
     float GetProgress();
     void SetType(int newtype);
     eStreamType GetType();
+    void SetTakeGameSpeedIntoAccount(bool enable);
+    bool IsTakingGameSpeedIntoAccount();
 
 public:
     // overloadable actions
