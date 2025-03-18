@@ -34,6 +34,11 @@ float GetMusicVolume();
 
 
 
+inline bool IsURLPath(const char* path)
+{
+    return strncmp("http:", path, 5) == 0 ||  strncmp("https:", path, 6) == 0;
+}
+
 bool CSoundSystem::Init()
 {
     sGameRoot = aml->GetAndroidDataPath();
@@ -163,12 +168,13 @@ void CSoundSystem::Update()
     }
 }
 
-CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false), type(eStreamType::None) {}
-CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(false), type(eStreamType::None)
+CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false), type(eStreamType::SoundEffect) {}
+CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(false), type(eStreamType::SoundEffect)
 {
     unsigned flags = BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
-    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
+    if (!(IsURLPath(src) && (streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL))) &&
+        !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
         !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)) &&
         !(streamInternal = BASS->StreamCreateFile(false, (std::string(cleo->GetCleoStorageDir()) + "/" + src).c_str(), 0, 0, flags)))
     {
@@ -248,14 +254,27 @@ void CAudioStream::UpdateSpeed()
         // check progress
         auto remaining = speedTarget - speed;
         remaining *= (speedTransitionStep > 0.0) ? 1.0 : -1.0;
-        if (remaining < 0.0) // overshoot
+        if (remaining < 0.0f) // overshoot
         {
             speed = speedTarget; // done
             if (speed <= 0.0f) Pause();
         }
     }
 
-    float freq = rate * (float)speed * CSoundSystem::masterSpeed;
+    float masterSpeed;
+    switch(type)
+    {
+        case eStreamType::SoundEffect:
+        case eStreamType::Music: // and muted
+            masterSpeed = CSoundSystem::masterSpeed;
+            break;
+
+        default:
+            masterSpeed = 1.0f;
+            break;
+    }
+
+    float freq = rate * (float)speed * masterSpeed;
     freq = fmaxf(freq, 0.000001f); // 0 results in original speed
     BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_FREQ, freq);
 }
@@ -288,7 +307,7 @@ void CAudioStream::UpdateVolume()
         // check progress
         auto remaining = volumeTarget - volume;
         remaining *= (volumeTransitionStep > 0.0) ? 1.0 : -1.0;
-        if (remaining < 0.0) // overshoot
+        if (remaining < 0.0f) // overshoot
         {
             volume = volumeTarget;
             if (volume <= 0.0f) Pause();
@@ -299,8 +318,9 @@ void CAudioStream::UpdateVolume()
     switch(type)
     {
         case SoundEffect: masterVolume = CSoundSystem::masterVolumeSfx; break;
-        case Music: masterVolume = CSoundSystem::masterVolumeMusic; break;
-        default: masterVolume = 1.0f; break;
+        case Music: masterVolume = (CSoundSystem::masterSpeed == 1.0f) ? CSoundSystem::masterVolumeMusic : 0.0f; break;
+        case UserInterface: masterVolume = CSoundSystem::masterVolumeSfx; break;
+        default: masterVolume = 1.0f;
     }
 
     BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_VOL, (float)volume * masterVolume);
@@ -318,10 +338,10 @@ void CAudioStream::SetVolume(float value, float transitionTime)
     value = fmaxf(value, 0.0f);
     volumeTarget = value;
 
-    if (transitionTime <= 0.0)
+    if (transitionTime <= 0.0f)
         volume = value; // instant
     else
-        volumeTransitionStep = (volumeTarget - volume) / (1000.0 * transitionTime);
+        volumeTransitionStep = (volumeTarget - volume) / (1000.0f * transitionTime);
 }
 
 void CAudioStream::SetProgress(float value)
@@ -433,7 +453,8 @@ C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
 {
     unsigned flags = BASS_SAMPLE_3D | BASS_SAMPLE_MONO | BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
-    if (!(streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL)) && !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
+    if (!(IsURLPath(src) && (streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL))) &&
+        !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
         !(streamInternal = BASS->StreamCreateFile(false, (sGameRoot + src).c_str(), 0, 0, flags)) &&
         !(streamInternal = BASS->StreamCreateFile(false, (std::string(cleo->GetCleoStorageDir()) + "/" + src).c_str(), 0, 0, flags)))
     {

@@ -25,7 +25,7 @@ CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
 bool        (*Get_Just_Switched_Status)(CCamera*) = NULL;
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.3, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.4, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.6)
     ADD_DEPENDENCY(net.rusjj.basslib)
@@ -50,7 +50,7 @@ CLEO_Fn(SET_AUDIO_STREAM_STATE)
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(!stream)
     {
-        logger->Error("[%04X] Trying to do an action on zero audiostream", opcode);
+        logger->Error("[%04X] Trying to do an action on NULL audiostream!", opcode);
         return;
     }
     int action = cleo->ReadParam(handle)->i;
@@ -212,6 +212,7 @@ CLEO_Fn(SET_AUDIO_STREAM_SOURCE_SIZE)
         }
         else if(radius < 0)
         {
+            // mobile has MAX radius (mhm)
             stream->SetMax3DRadius(-radius);
         }
     }
@@ -290,7 +291,7 @@ float GetEffectsVolume()
     }
     else // GTA:VC ?
     {
-        float val = (1.0 / 127.0) * *(SampleManager_VC + 0x8);
+        float val = (float)( *(SampleManager_VC + 0x8) ) / 127.0f;
         
         if(val > 1) return 1.0f;
         else if(val < 0) return 0.0f;
@@ -305,7 +306,7 @@ float GetMusicVolume()
     }
     else // GTA:VC ?
     {
-        float val = (1.0 / 127.0) * *(SampleManager_VC + 0x9);
+        float val = (float)( *(SampleManager_VC + 0x9) ) / 127.0f;
         
         if(val > 1) return 1.0f;
         else if(val < 0) return 0.0f;
@@ -318,17 +319,17 @@ extern "C" void OnModLoad()
     logger->SetTag("[CLEO] AudioStreams");
     if(!(cleo = (cleo_ifs_t*)GetInterface("CLEO")))
     {
-        logger->Error("Cannot load: CLEO interface is not found!");
+        logger->Error("Cannot start: CLEO interface is missing!");
         return;
     }
     if(!(cleoaddon = (cleo_addon_ifs_t*)GetInterface("CLEOAddon")))
     {
-        logger->Error("Cannot load a mod: CLEO's Addon interface is unknown!");
+        logger->Error("Cannot start: CLEO's Addon interface is missing!");
         return;
     }
     if(!(BASS = (IBASS*)GetInterface("BASS")))
     {
-        logger->Error("Cannot load: BASS interface is not found!");
+        logger->Error("Cannot start: BASS interface is missing!");
         return;
     }
 
@@ -341,8 +342,8 @@ extern "C" void OnModLoad()
     SET_TO(m_snPreviousTimeInMillisecondsNonClipped, cleo->GetMainLibrarySymbol("_ZN6CTimer40m_snPreviousTimeInMillisecondsNonClippedE"));
     SET_TO(ms_fTimeScale, cleo->GetMainLibrarySymbol("_ZN6CTimer13ms_fTimeScaleE"));
 
-    if((uintptr_t)camera == gameAddr + 0x951FA8) nGameLoaded = 0; // SA 2.00
-    else if((uintptr_t)camera == gameAddr + 0x595420) nGameLoaded = 1; // VC 1.09
+         if((uintptr_t)camera == (uintptr_t)(gameAddr + 0x951FA8)) nGameLoaded = 0; // SA 2.00
+    else if((uintptr_t)camera == (uintptr_t)(gameAddr + 0x595420)) nGameLoaded = 1; // VC 1.09
     else
     {
         logger->Info("The loaded game is not GTA:SA v2.00 or GTA:VC v1.09. Aborting...");
@@ -351,11 +352,11 @@ extern "C" void OnModLoad()
 
     if(nGameLoaded == 0) // GTA:SA
     {
-        HOOKPLT(UpdateGameLogic, gameAddr + 0x66FE58);
-        HOOKPLT(PauseOpenAL, gameAddr + 0x674BE0);
-        HOOKPLT(GameShutdown, gameAddr + 0x672864);
+        HOOKPLT(UpdateGameLogic,    gameAddr + 0x66FE58);
+        HOOKPLT(PauseOpenAL,        gameAddr + 0x674BE0);
+        HOOKPLT(GameShutdown,       gameAddr + 0x672864);
         HOOKPLT(GameShutdownEngine, gameAddr + 0x6756F0);
-        HOOKPLT(GameRestart, gameAddr + 0x6731A0);
+        HOOKPLT(GameRestart,        gameAddr + 0x6731A0);
 
         SET_TO(AEAudioHardware, cleo->GetMainLibrarySymbol("AEAudioHardware"));
         SET_TO(GetEffectsMasterScalingFactor, cleo->GetMainLibrarySymbol("_ZN16CAEAudioHardware29GetEffectsMasterScalingFactorEv"));
@@ -363,17 +364,16 @@ extern "C" void OnModLoad()
     }
     else // GTA:VC ?
     {
-        HOOKBL(UpdateGameLogic, gameAddr + 0x14ECD2 + 0x1);
-        HOOKBL(StartUserPause, gameAddr + 0x21E4C0 + 0x1);
-        HOOKBL(UpdateTimer, gameAddr + 0x21E3AE + 0x1);
-        HOOKBL(GameShutdown, gameAddr + 0x21E02E + 0x1); HOOKBL(GameShutdown, gameAddr + 0x21E9B4 + 0x1);
-        HOOKBL(GameShutdownEngine, gameAddr + 0x14F078 + 0x1);
-        HOOKBL(GameRestart, gameAddr + 0x14CCA6 + 0x1); HOOKBL(GameRestart, gameAddr + 0x21E8AA + 0x1);
+        HOOK(UpdateGameLogic,       gameAddr + 0x14C990 + 0x1);
+        HOOKBL(StartUserPause,      gameAddr + 0x21E4C0 + 0x1);
+        HOOKBL(UpdateTimer,         gameAddr + 0x21E3AE + 0x1);
+        HOOK(GameShutdown,          gameAddr + 0x14C75C + 0x1);
+        HOOK(GameShutdownEngine,    gameAddr + 0x14F078 + 0x1);
+        HOOK(GameRestart,           gameAddr + 0x14CBB8 + 0x1);
 
         SET_TO(SampleManager_VC, cleo->GetMainLibrarySymbol("SampleManager"));
     }
     
-
     SET_TO(GetObjectFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools9GetObjectEi"));
     SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
     SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
