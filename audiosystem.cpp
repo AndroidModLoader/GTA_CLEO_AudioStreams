@@ -11,7 +11,7 @@ extern cleo_ifs_t* cleo;
 
 
 BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0, 0), top(0, 0, 1.0);
-BASS_3DVECTOR bass_frontVec(0.0f, 0.0f, 0.0f), bass_topVec(0.0f, 0.0f, 0.0f);
+BASS_3DVECTOR bass_frontVec(0.0f, 0.0f, 0.0f), bass_topVec(0.0f, 0.0f, 0.0f), bass_emptyVec(0.0f, 0.0f, 0.0f);
 
 std::string sGameRoot;
 float CSoundSystem::masterSpeed = 1.0f;
@@ -140,8 +140,8 @@ void CSoundSystem::Update()
         CMatrix* pMatrix = nGameLoaded == 1 ? camera->GetCamMatVC() : camera->GetMatSA();
         CVector* pVec = &pMatrix->pos;
 
-        bass_frontVec = {pMatrix->at.y, pMatrix->at.z, pMatrix->at.x};
-        bass_topVec = {pMatrix->up.y, pMatrix->up.z, pMatrix->up.x};
+        bass_frontVec = { pMatrix->at.y, pMatrix->at.z, pMatrix->at.x };
+        bass_topVec   = { pMatrix->up.y, pMatrix->up.z, pMatrix->up.x };
 
         BASS_3DVECTOR prevPos = pos;
         pos = BASS_3DVECTOR(pVec->y, pVec->z, pVec->x);
@@ -166,6 +166,10 @@ void CSoundSystem::Update()
         // apply above changes
         BASS->Apply3D();
     }
+}
+bool CSoundSystem::IsStreamInList(CAudioStream *stream)
+{
+    return ( streams.find(stream) != streams.end() );
 }
 
 CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false),
@@ -435,12 +439,12 @@ void CAudioStream::Set3DPosition(float, float, float)
 
 void CAudioStream::SetMin3DRadius(float radius)
 {
-    logger->Error("Unimplemented CAudioStream::SetMin3DRadius(float radius)");
+    logger->Error("Unimplemented CAudioStream::SetMin3DRadius(float)");
 }
 
 void CAudioStream::SetMax3DRadius(float radius)
 {
-    logger->Error("Unimplemented CAudioStream::SetMax3DRadius(float radius)");
+    logger->Error("Unimplemented CAudioStream::SetMax3DRadius(float)");
 }
 
 float CAudioStream::GetMin3DRadius()
@@ -472,9 +476,20 @@ CVector CAudioStream::GetPosition()
     return CVector {0, 0, 0};
 }
 
+void CAudioStream::SetDopplerEffect(bool enable)
+{
+    logger->Error("Unimplemented CAudioStream::SetDopplerEffect(bool)");
+}
+
+bool CAudioStream::GetDopplerEffect()
+{
+    logger->Error("Unimplemented CAudioStream::GetDopplerEffect()");
+    return false;
+}
+
 ////////////////// 3D Audiostream //////////////////
 
-C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL)
+C3DAudioStream::C3DAudioStream(const char *src) : CAudioStream(), link(NULL), dopplerEffect(true)
 {
     unsigned flags = BASS_SAMPLE_3D | BASS_SAMPLE_MONO | BASS_SAMPLE_SOFTWARE;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
@@ -503,8 +518,7 @@ void C3DAudioStream::Set3DPosition(const CVector& pos)
     position.y = pos.z;
     position.z = pos.x;
     link = NULL;
-    BASS_3DVECTOR avel = { 0.0f, 0.0f, 0.0f };
-    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
+    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &bass_emptyVec);
 }
 
 void C3DAudioStream::Set3DPosition(float x, float y, float z)
@@ -513,8 +527,7 @@ void C3DAudioStream::Set3DPosition(float x, float y, float z)
     position.y = z;
     position.z = x;
     link = NULL;
-    BASS_3DVECTOR avel = { 0.0f, 0.0f, 0.0f };
-    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
+    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &bass_emptyVec);
 }
 
 void C3DAudioStream::SetMin3DRadius(float radius)
@@ -566,17 +579,24 @@ void C3DAudioStream::UpdatePosition()
         CVector* pVec = nGameLoaded==1 ? link->GetPosVC() : link->GetPosSA();
         position = BASS_3DVECTOR(pVec->y, pVec->z, pVec->x);
 
-        // calculate velocity
-        BASS_3DVECTOR avel = position;
-        avel.x -= prevPos.x;
-        avel.y -= prevPos.y;
-        avel.z -= prevPos.z;
-        auto timeDelta = 0.001f * (*m_snTimeInMillisecondsNonClipped - *m_snPreviousTimeInMillisecondsNonClipped);
-        avel.x *= timeDelta;
-        avel.y *= timeDelta;
-        avel.z *= timeDelta;
-
-        BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
+        if(dopplerEffect)
+        {
+            // calculate velocity
+            BASS_3DVECTOR avel = position;
+            avel.x -= prevPos.x;
+            avel.y -= prevPos.y;
+            avel.z -= prevPos.z;
+            auto timeDelta = 0.001f * (*m_snTimeInMillisecondsNonClipped - *m_snPreviousTimeInMillisecondsNonClipped);
+            avel.x *= timeDelta;
+            avel.y *= timeDelta;
+            avel.z *= timeDelta;
+    
+            BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
+        }
+        else
+        {
+            BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &bass_emptyVec);
+        }
     }
 }
 
@@ -588,4 +608,14 @@ void C3DAudioStream::UpdateRadius()
 CVector C3DAudioStream::GetPosition()
 {
     return CVector {position.z, position.x, position.y};
+}
+
+void C3DAudioStream::SetDopplerEffect(bool enable)
+{
+    dopplerEffect = enable;
+}
+
+bool C3DAudioStream::GetDopplerEffect()
+{
+    return dopplerEffect;
 }

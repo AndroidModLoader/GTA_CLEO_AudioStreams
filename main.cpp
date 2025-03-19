@@ -279,6 +279,22 @@ CLEO_Fn(IS_AUDIO_STREAM_LINKED)
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     cleoaddon->UpdateCompareFlag(handle, stream && stream->Is3DSource() && stream->IsLinked());
 }
+CLEO_Fn(IS_AUDIO_STREAM_VALID)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    cleoaddon->UpdateCompareFlag(handle, stream && soundsys->IsStreamInList(stream));
+}
+CLEO_Fn(GET_STREAM_DOPPLER_EFFECT)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    cleoaddon->UpdateCompareFlag(handle, stream && stream->GetDopplerEffect());
+}
+CLEO_Fn(SET_STREAM_DOPPLER_EFFECT)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    bool takeIt = cleo->ReadParam(handle)->i;
+    if(stream) stream->SetDopplerEffect(takeIt);
+}
 
 // Hookies
 
@@ -451,6 +467,9 @@ extern "C" void OnModLoad()
     CLEO_RegisterOpcode(0x2542, IS_AUDIO_STREAM_IN_3D);        // 2542=1,is_audio_stream_3d %1d%
     CLEO_RegisterOpcode(0x2543, GET_AUDIO_STREAM_POSITION);    // 2543=4,get_audio_stream %1d% position %2d% %3d% %4d%
     CLEO_RegisterOpcode(0x2544, IS_AUDIO_STREAM_LINKED);       // 2544=1,is_audio_stream_linked %1d%
+    CLEO_RegisterOpcode(0x2545, IS_AUDIO_STREAM_VALID);        // 2545=1,is_audio_stream_valid %1d%
+    CLEO_RegisterOpcode(0x2546, GET_STREAM_DOPPLER_EFFECT);    // 2546=1,has_audio_stream_doppler_effect %1d%
+    CLEO_RegisterOpcode(0x2547, SET_STREAM_DOPPLER_EFFECT);    // 2547=2,set_stream %1d% doppler_effect %2d%
 
     soundsys->Init();
 

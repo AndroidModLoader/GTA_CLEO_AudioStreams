@@ -55,6 +55,7 @@ public:
     void UnloadStream(CAudioStream *stream);
     void UnloadAllStreams();
     void Update();
+    bool IsStreamInList(CAudioStream *stream);
 };
 class CAudioStream
 {
@@ -117,6 +118,8 @@ public:
     virtual bool IsLinked();
     virtual void Process();
     virtual CVector GetPosition();
+    virtual void SetDopplerEffect(bool enable);
+    virtual bool GetDopplerEffect();
 };
 class C3DAudioStream : public CAudioStream
 {
@@ -127,6 +130,7 @@ protected:
     BASS_3DVECTOR   position;
     float           minRadius = 3.0f;
     float           maxRadius = 1E+12f;
+    bool            dopplerEffect;
 public:
     C3DAudioStream(const char *src);
     void UpdatePosition();
@@ -143,6 +147,8 @@ public:
     virtual bool IsLinked();
     virtual void Process();
     virtual CVector GetPosition();
+    virtual void SetDopplerEffect(bool enable);
+    virtual bool GetDopplerEffect();
 };
 
 extern IBASS* BASS;
