@@ -10,7 +10,7 @@ extern cleo_ifs_t* cleo;
 
 
 
-BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0, 0), top(0, 0, 1.0);
+BASS_3DVECTOR pos(0, 0, 0), vel(0, 0, 0), front(0, -1.0f, 0), top(0, 0, 1.0f);
 BASS_3DVECTOR bass_frontVec(0.0f, 0.0f, 0.0f), bass_topVec(0.0f, 0.0f, 0.0f), bass_emptyVec(0.0f, 0.0f, 0.0f);
 
 std::string sGameRoot;
@@ -42,7 +42,7 @@ inline bool IsURLPath(const char* path)
 bool CSoundSystem::Init()
 {
     sGameRoot = aml->GetAndroidDataPath();
-    if (BASS->Set3DFactors(1.0f, 3.0f, 80.0f) && BASS->Set3DPosition(&pos, &vel, &front, &top))
+    if (BASS->Set3DFactors(1.0f, 0.3f, 1.0f) && BASS->Set3DPosition(&pos, &vel, &front, &top))
     {
         logger->Info("Initializing SoundSystem...");
 
@@ -358,18 +358,18 @@ void CAudioStream::SetProgress(float value)
         state = Paused; // resume from set progress
     }
     value = std::clamp(value, 0.0f, 1.0f);
-    auto bytePos = BASS_ChannelSeconds2Bytes(streamInternal, GetLength() * value);
+    auto bytePos = BASS->ChannelSeconds2Bytes(streamInternal, GetLength() * value);
     BASS->ChannelSetPosition(streamInternal, bytePos, BASS_POS_BYTE);
 }
 
 float CAudioStream::GetProgress()
 {
-    auto bytePos = BASS_ChannelGetPosition(streamInternal, BASS_POS_BYTE);
+    auto bytePos = BASS->ChannelGetPosition(streamInternal, BASS_POS_BYTE);
     if (bytePos == -1) bytePos = 0; // error or not available yet
-    auto pos = BASS_ChannelBytes2Seconds(streamInternal, bytePos);
+    auto pos = BASS->ChannelBytes2Seconds(streamInternal, bytePos);
 
-    auto byteTotal = BASS_ChannelGetLength(streamInternal, BASS_POS_BYTE);
-    auto total = BASS_ChannelBytes2Seconds(streamInternal, byteTotal);
+    auto byteTotal = BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE);
+    auto total = BASS->ChannelBytes2Seconds(streamInternal, byteTotal);
     return (float)(pos / total);
 }
 
@@ -409,7 +409,7 @@ void CAudioStream::Process()
     }
     else
     {
-        if (state == Playing && BASS_ChannelIsActive(streamInternal) == BASS_ACTIVE_STOPPED) // end reached
+        if (state == Playing && BASS->ChannelIsActive(streamInternal) == BASS_ACTIVE_STOPPED) // end reached
         {
             state = eStreamState::Stopped;
         }
@@ -572,6 +572,7 @@ void C3DAudioStream::Process()
 
 void C3DAudioStream::UpdatePosition()
 {
+    BASS_3DVECTOR avel = bass_emptyVec;
     if (link) // attached to entity
     {
         auto prevPos = position;
@@ -581,7 +582,7 @@ void C3DAudioStream::UpdatePosition()
         if(dopplerEffect)
         {
             // calculate velocity
-            BASS_3DVECTOR avel = position;
+            avel = position;
             avel.x -= prevPos.x;
             avel.y -= prevPos.y;
             avel.z -= prevPos.z;
@@ -589,14 +590,9 @@ void C3DAudioStream::UpdatePosition()
             avel.x *= timeDelta;
             avel.y *= timeDelta;
             avel.z *= timeDelta;
-    
-            BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
-        }
-        else
-        {
-            BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &bass_emptyVec);
         }
     }
+    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
 }
 
 void C3DAudioStream::UpdateRadius()
