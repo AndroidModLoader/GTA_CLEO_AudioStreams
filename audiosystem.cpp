@@ -178,7 +178,7 @@ CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), O
 CAudioStream::CAudioStream(const char *src) : state(eStreamState::Paused), OK(false),
                                               type(eStreamType::SoundEffect), takeGameSpeedIntoAccount(false)
 {
-    unsigned flags = BASS_SAMPLE_SOFTWARE;
+    unsigned flags = BASS_SAMPLE_SOFTWARE | BASS_STREAM_PRESCAN;
     if (soundsys->bUseFPAudio) flags |= BASS_SAMPLE_FLOAT;
     if (!(IsURLPath(src) && (streamInternal = BASS->StreamCreateURL(src, 0, flags, NULL))) &&
         !(streamInternal = BASS->StreamCreateFile(false, src, 0, 0, flags)) &&
@@ -353,27 +353,24 @@ void CAudioStream::SetVolume(float value, float transitionTime)
 
 void CAudioStream::SetProgress(float value)
 {
-    if(value == 0)
+    if (GetState() == Stopped)
     {
-        BASS->ChannelSetPosition(streamInternal, 0, BASS_POS_BYTE);
-        return;
+        state = Paused; // resume from set progress
     }
-    double val = (value > 1.0) ? 1.0 : ((value < 0.0) ? 0.0 : (double)value);
-    uint64_t total = BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE);
-    uint64_t bytePos = (uint64_t)(val * total);
+    value = std::clamp(value, 0.0f, 1.0f);
+    auto bytePos = BASS_ChannelSeconds2Bytes(streamInternal, GetLength() * value);
     BASS->ChannelSetPosition(streamInternal, bytePos, BASS_POS_BYTE);
 }
 
 float CAudioStream::GetProgress()
 {
-    auto total = BASS->ChannelGetLength(streamInternal, BASS_POS_BYTE); // returns -1 on error
-    auto bytePos = BASS->ChannelGetPosition(streamInternal, BASS_POS_BYTE); // returns -1 on error
-
+    auto bytePos = BASS_ChannelGetPosition(streamInternal, BASS_POS_BYTE);
     if (bytePos == -1) bytePos = 0; // error or not available yet
+    auto pos = BASS_ChannelBytes2Seconds(streamInternal, bytePos);
 
-    float progress = (float)bytePos / total;
-    progress = std::clamp(progress, 0.0f, 1.0f);
-    return progress;
+    auto byteTotal = BASS_ChannelGetLength(streamInternal, BASS_POS_BYTE);
+    auto total = BASS_ChannelBytes2Seconds(streamInternal, byteTotal);
+    return (float)(pos / total);
 }
 
 void CAudioStream::SetType(int newtype)
@@ -410,10 +407,12 @@ void CAudioStream::Process()
         BASS->ChannelPlay(streamInternal, false);
         state = eStreamState::Playing;
     }
-
-    if (!GetLooping() && GetProgress() >= 1.0f) // end reached
+    else
     {
-        state = eStreamState::Stopped;
+        if (state == Playing && BASS_ChannelIsActive(streamInternal) == BASS_ACTIVE_STOPPED) // end reached
+        {
+            state = eStreamState::Stopped;
+        }
     }
 
     if (state != eStreamState::Playing) return; // done
