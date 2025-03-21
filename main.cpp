@@ -241,6 +241,29 @@ CLEO_Fn(SET_AUDIO_STREAM_TYPE)
     int newtype = cleo->ReadParam(handle)->i;
     if(stream) stream->SetType(newtype);
 }
+CLEO_Fn(GET_AUDIO_STREAM_PROGRESS_SECONDS)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float progress = 0.0f;
+    if(stream)
+    {
+        progress = stream->GetProgress() * stream->GetLength();
+    }
+    cleo->GetPointerToScriptVar(handle)->f = progress;
+}
+CLEO_Fn(SET_AUDIO_STREAM_PROGRESS_SECONDS)
+{
+    CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    float progress = cleo->ReadParam(handle)->f;
+    if(stream)
+    {
+        float len = stream->GetLength();
+        if(len > 0) progress /= len;
+        else progress = 0.0f;
+
+        stream->SetProgress(progress);
+    }
+}
 CLEO_Fn(GET_STREAM_TAKING_GAME_SPEED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
@@ -460,6 +483,8 @@ extern "C" void OnModLoad()
     CLEO_RegisterOpcode(0x2508, SET_AUDIO_STREAM_PROGRESS);
     CLEO_RegisterOpcode(0x2509, GET_AUDIO_STREAM_TYPE);
     CLEO_RegisterOpcode(0x250A, SET_AUDIO_STREAM_TYPE);
+    CLEO_RegisterOpcode(0x250B, GET_AUDIO_STREAM_PROGRESS_SECONDS);
+    CLEO_RegisterOpcode(0x250C, SET_AUDIO_STREAM_PROGRESS_SECONDS);
 
     // Author's stuff (CLEO5 maintainer is a dumbo, im sorry...)
     CLEO_RegisterOpcode(0x2540, GET_STREAM_TAKING_GAME_SPEED); // 2540=1,does_game_speed_affect_stream %1d%
