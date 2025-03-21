@@ -29,6 +29,7 @@ extern uint32_t* m_snPreviousTimeInMillisecondsNonClipped;
 extern float* ms_fTimeScale;
 
 extern bool (*Get_Just_Switched_Status)(CCamera*);
+extern int (*GetScreenOrientation)();
 float GetEffectsVolume();
 float GetMusicVolume();
 
@@ -123,6 +124,7 @@ inline bool CameraJustRestored()
         return *(bool*)((int)camera + 0x4C);
     }
 }
+int updateFrames = 0, displayOrientation = 0;
 void CSoundSystem::Update()
 {
     if (*userPaused || *codePaused)	// covers menu pausing, no disc in drive pausing (KILL MAN: disc on a phone), etc.
@@ -131,6 +133,12 @@ void CSoundSystem::Update()
     }
     else
     {
+        updateFrames = (++updateFrames) % 8;
+        if(updateFrames == 0)
+        {
+            displayOrientation = GetScreenOrientation();
+        }
+            
         if (paused) ResumeStreams();
 
         masterSpeed = *ms_fTimeScale;
@@ -154,6 +162,12 @@ void CSoundSystem::Update()
         vel.x *= timeDelta;
         vel.y *= timeDelta;
         vel.z *= timeDelta;
+
+        if(displayOrientation > 1)
+        {
+            // is this correct?
+            bass_frontVec.z = -bass_frontVec.z;
+        }
 
         if(!Get_Just_Switched_Status(camera) && !CameraJustRestored())
         {
