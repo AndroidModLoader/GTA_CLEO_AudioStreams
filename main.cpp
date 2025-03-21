@@ -24,6 +24,7 @@ CObject*    (*GetObjectFromRef)(int) = NULL;
 CPed*       (*GetPedFromRef)(int) = NULL;
 CVehicle*   (*GetVehicleFromRef)(int) = NULL;
 bool        (*Get_Just_Switched_Status)(CCamera*) = NULL;
+int         (*GetScreenOrientation)();
 
 MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.4, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
@@ -456,6 +457,7 @@ extern "C" void OnModLoad()
     SET_TO(GetPedFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools6GetPedEi"));
     SET_TO(GetVehicleFromRef, cleo->GetMainLibrarySymbol("_ZN6CPools10GetVehicleEi"));
     SET_TO(Get_Just_Switched_Status, cleo->GetMainLibrarySymbol("_ZN7CCamera24Get_Just_Switched_StatusEv"));
+    SET_TO(GetScreenOrientation, cleo->GetMainLibrarySymbol("_Z21NVEventGetOrientationv"));
 
     CLEO_RegisterOpcode(0x0AAC, LOAD_AUDIO_STREAM);
     CLEO_RegisterOpcode(0x0AAD, SET_AUDIO_STREAM_STATE);
