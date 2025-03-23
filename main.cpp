@@ -52,12 +52,12 @@ CLEO_Fn(LOAD_AUDIO_STREAM)
 CLEO_Fn(SET_AUDIO_STREAM_STATE)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
+    int action = cleo->ReadParam(handle)->i;
     if(!stream)
     {
-        logger->Error("[%04X] Trying to do an action on NULL audiostream!", opcode);
+        logger->Error("[%04X] Trying to do an action %d on NULL audiostream!", opcode, action);
         return;
     }
-    int action = cleo->ReadParam(handle)->i;
     switch(action)
     {
         case 0: stream->Stop();   break;
@@ -73,7 +73,7 @@ CLEO_Fn(REMOVE_AUDIO_STREAM)
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
     if(!stream)
     {
-        logger->Error("[%04X] Trying to remove zero audiostream", opcode);
+        logger->Error("[%04X] Trying to remove NULL audiostream", opcode);
         return;
     }
     soundsys->UnloadStream(stream);
@@ -96,12 +96,14 @@ CLEO_Fn(GET_AUDIO_STREAM_VOLUME)
 CLEO_Fn(SET_AUDIO_STREAM_VOLUME)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream) stream->SetVolume(cleo->ReadParam(handle)->f);
+    float volume = cleo->ReadParam(handle)->f;
+    if(stream) stream->SetVolume(volume);
 }
 CLEO_Fn(SET_AUDIO_STREAM_LOOPED)
 {
     CAudioStream* stream = (CAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream) stream->SetLooping(cleo->ReadParam(handle)->i != 0);
+    bool loop = (cleo->ReadParam(handle)->i != 0);
+    if(stream) stream->SetLooping(loop);
 }
 CLEO_Fn(LOAD_3D_AUDIO_STREAM)
 {
@@ -120,34 +122,28 @@ CLEO_Fn(LOAD_3D_AUDIO_STREAM)
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_COORDS)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream)
-    {
-        stream->Set3DPosition(cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f, cleo->ReadParam(handle)->f);
-    }
+    float x = cleo->ReadParam(handle)->f;
+    float y = cleo->ReadParam(handle)->f;
+    float z = cleo->ReadParam(handle)->f;
+    if(stream) stream->Set3DPosition(x, y, z);
 }
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_OBJECT)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream)
-    {
-        stream->Link(GetObjectFromRef(cleo->ReadParam(handle)->u));
-    }
+    uint32_t entityRef = cleo->ReadParam(handle)->u;
+    if(stream) stream->Link(GetObjectFromRef(entityRef));
 }
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CHAR)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream)
-    {
-        stream->Link(GetPedFromRef(cleo->ReadParam(handle)->u));
-    }
+    uint32_t entityRef = cleo->ReadParam(handle)->u;
+    if(stream) stream->Link(GetPedFromRef(entityRef));
 }
 CLEO_Fn(SET_PLAY_3D_AUDIO_STREAM_AT_CAR)
 {
     C3DAudioStream* stream = (C3DAudioStream*)cleo->ReadParam(handle)->u;
-    if(stream)
-    {
-        stream->Link(GetVehicleFromRef(cleo->ReadParam(handle)->u));
-    }
+    uint32_t entityRef = cleo->ReadParam(handle)->u;
+    if(stream) stream->Link(GetVehicleFromRef(entityRef));
 }
 
 // CLEO 5
