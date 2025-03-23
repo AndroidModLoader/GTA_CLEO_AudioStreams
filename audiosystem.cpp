@@ -133,11 +133,11 @@ void CSoundSystem::Update()
     }
     else
     {
-        updateFrames = (++updateFrames) % 8;
+        /*updateFrames = (++updateFrames) % 32;
         if(updateFrames == 0)
         {
             displayOrientation = GetScreenOrientation();
-        }
+        }*/
             
         if (paused) ResumeStreams();
 
@@ -163,11 +163,11 @@ void CSoundSystem::Update()
         vel.y *= timeDelta;
         vel.z *= timeDelta;
 
-        if(displayOrientation > 1)
+        /*if(displayOrientation > 1)
         {
             // is this correct?
             bass_frontVec.z = -bass_frontVec.z;
-        }
+        }*/
 
         if(!Get_Just_Switched_Status(camera) && !CameraJustRestored())
         {
