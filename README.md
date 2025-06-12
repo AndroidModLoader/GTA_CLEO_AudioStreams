@@ -27,8 +27,8 @@ Compile the script as a PC script or simply add lines below into your SASCM.ini 
 2501=2,%2d% = get_audiostream_duration %1d%
 2502=2,get_audio_stream_speed %1d% store_to %2d%
 2503=2,set_audio_stream_speed %1d% speed %2d%
-2504=3,set_audio_stream_volume_with_transition %1d% volume %2d% time_ms %2d%
-2505=3,set_audio_stream_speed_with_transition %1d% speed %2d% time_ms %2d%
+2504=3,set_audio_stream_volume_with_transition %1d% volume %2d% time_ms %3d%
+2505=3,set_audio_stream_speed_with_transition %1d% speed %2d% time_ms %3d%
 2506=2,set_audio_stream_source_size %1d% radius %2d%
 2507=2,get_audio_stream_progress %1d% store_to %2d%
 2508=2,set_audio_stream_progress %1d% speed %2d%
