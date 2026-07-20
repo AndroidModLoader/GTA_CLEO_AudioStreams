@@ -439,6 +439,9 @@ void CAudioStream::Process()
     {
         BASS->ChannelPlay(streamInternal, false);
         state = eStreamState::Playing;
+        // same reason as posApplied below: force a re-send on playback start
+        appliedFreq = -1.0f;
+        appliedVolume = -1.0f;
     }
     else
     {
