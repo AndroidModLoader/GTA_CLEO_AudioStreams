@@ -130,7 +130,7 @@ class C3DAudioStream : public CAudioStream
     C3DAudioStream(const C3DAudioStream&);
 protected:
     CPlaceable*     link;
-    BASS_3DVECTOR   position;
+    BASS_3DVECTOR   position {0.0f, 0.0f, 0.0f};
     float           minRadius = 3.0f;
     float           maxRadius = 1E+12f;
     bool            dopplerEffect;
