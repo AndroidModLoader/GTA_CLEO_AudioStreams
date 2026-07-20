@@ -142,12 +142,12 @@ void CSoundSystem::Update()
     }
     else
     {
-        /*updateFrames = (++updateFrames) % 32;
+        /*
         if(updateFrames == 0)
         {
             displayOrientation = GetScreenOrientation();
         }*/
-            
+
         if (paused) ResumeStreams();
 
         masterSpeed = *ms_fTimeScale;
@@ -188,6 +188,8 @@ void CSoundSystem::Update()
 
         // apply above changes
         BASS->Apply3D();
+        
+        updateFrames = (updateFrames + 1) % 32;
     }
 }
 bool CSoundSystem::IsStreamInList(CAudioStream *stream)
