@@ -1,4 +1,4 @@
-#include <set>
+#include <vector>
 #include "SimpleGTA.h"
 #include "ibass.h"
 
@@ -31,7 +31,7 @@ class CSoundSystem
 {
     friend class CAudioStream;
     friend class C3DAudioStream;
-    std::set<CAudioStream *> streams;
+    std::vector<CAudioStream *> streams;
     BASS_INFO SoundDevice;
     int forceDevice;
     bool initialized;
@@ -76,6 +76,9 @@ protected:
     float volumeTransitionStep = 1.0f;
     float speedTarget = 1.0f;
     float speedTransitionStep = 1.0f;
+    // last values pushed to BASS, to skip redundant calls (-1 never matches a real one)
+    float appliedFreq = -1.0f;
+    float appliedVolume = -1.0f;
 
     CAudioStream();
 
@@ -131,6 +134,12 @@ protected:
     float           minRadius = 3.0f;
     float           maxRadius = 1E+12f;
     bool            dopplerEffect;
+    // last position pushed to BASS; only valid once posApplied is set
+    BASS_3DVECTOR   appliedPos;
+    BASS_3DVECTOR   appliedVel;
+    bool            posApplied = false;
+
+    void ApplyPosition(const BASS_3DVECTOR& vel);
 public:
     C3DAudioStream(const char *src);
     void UpdatePosition();

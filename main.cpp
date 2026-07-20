@@ -26,7 +26,7 @@ CVehicle*   (*GetVehicleFromRef)(int) = NULL;
 bool        (*Get_Just_Switched_Status)(CCamera*) = NULL;
 int         (*GetScreenOrientation)();
 
-MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.4, Alexander Blade & RusJJ)
+MYMOD(net.alexblade.rusjj.audiostreams, CLEO AudioStreams, 1.4.1, Alexander Blade & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.cleolib, 2.0.1.6)
     ADD_DEPENDENCY(net.rusjj.basslib)

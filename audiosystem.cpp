@@ -18,6 +18,11 @@ float CSoundSystem::masterSpeed = 1.0f;
 float CSoundSystem::masterVolumeSfx = 1.0f;
 float CSoundSystem::masterVolumeMusic = 1.0f;
 
+static inline bool VecEq(const BASS_3DVECTOR& a, const BASS_3DVECTOR& b)
+{
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
 
 
 extern CCamera *camera;
@@ -73,7 +78,7 @@ CAudioStream *CSoundSystem::LoadStream(const char *filename, bool in3d)
     CAudioStream *result = in3d ? new C3DAudioStream(filename) : new CAudioStream(filename);
     if (result->OK)
     {
-        streams.insert(result);
+        streams.push_back(result);
         return result;
     }
     delete result;
@@ -82,8 +87,12 @@ CAudioStream *CSoundSystem::LoadStream(const char *filename, bool in3d)
 
 void CSoundSystem::UnloadStream(CAudioStream *stream)
 {
-    if (streams.erase(stream))
+    auto it = std::find(streams.begin(), streams.end(), stream);
+    if (it != streams.end())
+    {
+        streams.erase(it);
         delete stream;
+    }
     else
         logger->Error("Unloading of stream that is not in a list of loaded streams");
 }
@@ -183,7 +192,7 @@ void CSoundSystem::Update()
 }
 bool CSoundSystem::IsStreamInList(CAudioStream *stream)
 {
-    return ( streams.find(stream) != streams.end() );
+    return ( std::find(streams.begin(), streams.end(), stream) != streams.end() );
 }
 
 CAudioStream::CAudioStream() : streamInternal(0), state(eStreamState::Paused), OK(false),
@@ -297,7 +306,11 @@ void CAudioStream::UpdateSpeed()
 
     float freq = rate * (float)speed * masterSpeed;
     freq = fmaxf(freq, 0.000001f); // 0 results in original speed
-    BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_FREQ, freq);
+    // exact compare: an epsilon would let real changes go unapplied
+    if (freq != appliedFreq && BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_FREQ, freq))
+    {
+        appliedFreq = freq;
+    }
 }
 
 float CAudioStream::GetSpeed()
@@ -344,7 +357,11 @@ void CAudioStream::UpdateVolume()
         default: masterVolume = 1.0f;
     }
 
-    BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_VOL, (float)volume * masterVolume);
+    float vol = (float)volume * masterVolume;
+    if (vol != appliedVolume && BASS->ChannelSetAttribute(streamInternal, BASS_ATTRIB_VOL, vol))
+    {
+        appliedVolume = vol;
+    }
 }
 
 float CAudioStream::GetVolume()
@@ -525,13 +542,28 @@ bool C3DAudioStream::Is3DSource()
     return true;
 }
 
+void C3DAudioStream::ApplyPosition(const BASS_3DVECTOR& vel)
+{
+    if (posApplied && VecEq(position, appliedPos) && VecEq(vel, appliedVel))
+    {
+        return; // nothing moved since last frame, don't contend for the lock
+    }
+
+    if (BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &vel))
+    {
+        appliedPos = position;
+        appliedVel = vel;
+        posApplied = true;
+    }
+}
+
 void C3DAudioStream::Set3DPosition(const CVector& pos)
 {
     position.x = pos.y;
     position.y = pos.z;
     position.z = pos.x;
     link = NULL;
-    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &bass_emptyVec);
+    ApplyPosition(bass_emptyVec);
 }
 
 void C3DAudioStream::Set3DPosition(float x, float y, float z)
@@ -540,7 +572,7 @@ void C3DAudioStream::Set3DPosition(float x, float y, float z)
     position.y = z;
     position.z = x;
     link = NULL;
-    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &bass_emptyVec);
+    ApplyPosition(bass_emptyVec);
 }
 
 void C3DAudioStream::SetMin3DRadius(float radius)
@@ -577,9 +609,14 @@ bool C3DAudioStream::IsLinked()
 
 void C3DAudioStream::Process()
 {
+    bool wasPlaying = (state == eStreamState::Playing);
+
     CAudioStream::Process();
 
     if (state != eStreamState::Playing) return; // done
+
+    // force a re-send on playback start: what we sent while inactive may not have stuck
+    if (!wasPlaying) posApplied = false;
 
     UpdatePosition();
 }
@@ -606,7 +643,7 @@ void C3DAudioStream::UpdatePosition()
             avel.z *= timeDelta;
         }
     }
-    BASS->ChannelSet3DPosition(streamInternal, &position, NULL, &avel);
+    ApplyPosition(avel);
 }
 
 void C3DAudioStream::UpdateRadius()
